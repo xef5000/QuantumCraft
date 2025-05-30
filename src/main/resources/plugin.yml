@@ -1,0 +1,42 @@
+name: QuantumCraft
+version: '${version}'
+main: ca.xef5000.quantumcraft.QuantumCraft
+api-version: '1.20'
+description: 'A plugin for creating and managing the quantum superposition of regions in Minecraft.'
+authors: [xef5000]
+depend: [ProtocolLib]
+
+commands:
+  quantumcraft:
+    description: Main command for QuantumCraft plugin
+    usage: /quantumcraft <subcommand> [args]
+    aliases: [qc]
+    permission: quantumcraft.use
+
+permissions:
+  quantumcraft.use:
+    description: Allows use of basic FakeRegion commands
+    default: true
+  quantumcraft.admin.*:
+    description: Gives access to all admin commands
+    default: op
+    children:
+      quantumcraft.admin.region.create: true
+      quantumcraft.admin.region.delete: true
+      quantumcraft.admin.version.add: true
+      quantumcraft.admin.version.remove: true
+  quantumcraft.admin.region.create:
+    description: Allows creating new regions
+    default: op
+  quantumcraft.admin.region.delete:
+    description: Allows deleting regions
+    default: op
+  quantumcraft.admin.version.add:
+    description: Allows adding new versions to regions
+    default: op
+  quantumcraft.admin.version.remove:
+    description: Allows removing versions quantumcraft regions
+    default: op
+  quantumcraft.view.*:
+    description: Allows viewing all region versions
+    default: false
