@@ -3,80 +3,79 @@ package ca.xef5000.quantumcraft;
 import ca.xef5000.quantumcraft.commands.QuantumCraftCommand;
 import ca.xef5000.quantumcraft.listeners.BlockListener;
 import ca.xef5000.quantumcraft.listeners.PlayerListener;
-import ca.xef5000.quantumcraft.manager.PlayerManager;
-import ca.xef5000.quantumcraft.manager.RegionManager;
-import ca.xef5000.quantumcraft.protocol.PacketManager;
-import org.bukkit.configuration.serialization.ConfigurationSerialization;
+import ca.xef5000.quantumcraft.player.PlayerStateManager;
+import ca.xef5000.quantumcraft.protocol.PacketInterceptor;
+import ca.xef5000.quantumcraft.region.RegionManager;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import ca.xef5000.quantumcraft.region.Region;
-import ca.xef5000.quantumcraft.region.RegionVersion;
-
 public final class QuantumCraft extends JavaPlugin {
+    private static QuantumCraft instance;
     private RegionManager regionManager;
-    private PlayerManager playerManager;
-    private PacketManager packetManager;
+    private PlayerStateManager playerStateManager;
+    private PacketInterceptor packetInterceptor;
 
     @Override
     public void onEnable() {
-        // Register serializable classes
-        ConfigurationSerialization.registerClass(Region.class);
-        ConfigurationSerialization.registerClass(RegionVersion.class);
-        ConfigurationSerialization.registerClass(RegionVersion.BlockState.class);
+        instance = this;
+
+        // Save default config
+        saveDefaultConfig();
 
         // Initialize managers
-        this.regionManager = new RegionManager(this);
-        this.playerManager = new PlayerManager(this);
-        this.packetManager = new PacketManager(this);
+        regionManager = new RegionManager(this);
+        playerStateManager = new PlayerStateManager(this);
+        packetInterceptor = new PacketInterceptor(this);
 
-        // Register command
-        getCommand("quantumcraft").setExecutor(new QuantumCraftCommand(this));
+        // Register commands
+        QuantumCraftCommand commandHandler = new QuantumCraftCommand(this);
+        getCommand("quantumcraft").setExecutor(commandHandler);
+        getCommand("quantumcraft").setTabCompleter(commandHandler);
 
-        // Register event listeners
+        // Register listeners
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
         getServer().getPluginManager().registerEvents(new BlockListener(this), this);
 
-        getLogger().info("FakeRegion has been enabled!");
+        // Initialize packet interceptor
+        packetInterceptor.initialize();
+
+        // Load regions from disk synchronously during startup
+        // This ensures regions are available before players can join
+        regionManager.loadAllRegionsSync();
+
+        getLogger().info("QuantumCraft has been enabled!");
+        getLogger().info("Quantum superposition system initialized - reality is now optional!");
     }
 
     @Override
     public void onDisable() {
-        // Save data
+        // Save all regions
         if (regionManager != null) {
-            regionManager.saveRegions();
+            regionManager.shutdown();
         }
 
-        if (playerManager != null) {
-            playerManager.savePlayerData();
+        // Clean up packet interceptor
+        if (packetInterceptor != null) {
+            packetInterceptor.shutdown();
         }
 
-        getLogger().info("FakeRegion has been disabled!");
+        getLogger().info("QuantumCraft has been disabled!");
+        getLogger().info("Reality has been restored... for now.");
     }
 
-    /**
-     * Gets the region manager.
-     *
-     * @return The region manager
-     */
+    // Getters for managers
+    public static QuantumCraft getInstance() {
+        return instance;
+    }
+
     public RegionManager getRegionManager() {
         return regionManager;
     }
 
-    /**
-     * Gets the player manager.
-     *
-     * @return The player manager
-     */
-    public PlayerManager getPlayerManager() {
-        return playerManager;
+    public PlayerStateManager getPlayerStateManager() {
+        return playerStateManager;
     }
 
-    /**
-     * Gets the packet manager.
-     *
-     * @return The packet manager
-     */
-    public PacketManager getPacketManager() {
-        return packetManager;
+    public PacketInterceptor getPacketInterceptor() {
+        return packetInterceptor;
     }
 }

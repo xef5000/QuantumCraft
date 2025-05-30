@@ -1,32 +1,35 @@
 package ca.xef5000.quantumcraft.commands;
 
 import ca.xef5000.quantumcraft.QuantumCraft;
-import ca.xef5000.quantumcraft.manager.RegionManager;
-import ca.xef5000.quantumcraft.protocol.PacketManager;
-import ca.xef5000.quantumcraft.region.Region;
+import ca.xef5000.quantumcraft.region.QuantumRegion;
+import ca.xef5000.quantumcraft.region.RegionState;
+import ca.xef5000.quantumcraft.util.CompressionUtil;
 import org.bukkit.ChatColor;
-import org.bukkit.World;
+import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
-import org.bukkit.util.Vector;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Handles commands for the FakeRegion plugin.
+ * Handles the main /quantumcraft command and its subcommands.
  */
 public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
     private final QuantumCraft plugin;
+    private final Map<UUID, Location> pos1Map = new HashMap<>();
+    private final Map<UUID, Location> pos2Map = new HashMap<>();
+    
+    public static final Material SELECTION_STICK_MATERIAL = Material.BLAZE_ROD;
 
     /**
-     * Creates a new FakeRegionCommand.
+     * Creates a new command handler.
      *
      * @param plugin The plugin instance
      */
@@ -41,340 +44,555 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        switch (args[0].toLowerCase()) {
-            case "region":
-                return handleRegionCommand(sender, args);
-            case "version":
-                return handleVersionCommand(sender, args);
-            case "select":
-                return handleSelectCommand(sender, args);
-            case "help":
+        String subCommand = args[0].toLowerCase();
+
+        switch (subCommand) {
+            case "create":
+                return handleCreate(sender, args);
+            case "delete":
+                return handleDelete(sender, args);
+            case "list":
+                return handleList(sender, args);
+            case "info":
+                return handleInfo(sender, args);
+            case "state":
+                return handleState(sender, args);
+            case "switch":
+                return handleSwitch(sender, args);
+            case "reality":
+                return handleReality(sender, args);
+            case "capture":
+                return handleCapture(sender, args);
+            case "stick":
+                return handleStick(sender);
+            case "stats":
+                return handleStats(sender, args);
+            case "refresh":
+                return handleRefresh(sender, args);
+            case "reload":
+                return handleReload(sender, args);
+            default:
+                sender.sendMessage(ChatColor.RED + "Unknown subcommand: " + subCommand);
                 sendHelp(sender);
                 return true;
-            default:
-                sender.sendMessage(ChatColor.RED + "Unknown command. Type /qc help for help.");
-                return true;
         }
     }
 
     /**
-     * Handles the region subcommand.
+     * Handles the 'create' subcommand.
      */
-    private boolean handleRegionCommand(CommandSender sender, String[] args) {
-        if (args.length < 2) {
-            sender.sendMessage(ChatColor.RED + "Usage: /qc region <create|delete> [args]");
-            return true;
-        }
-
-        switch (args[1].toLowerCase()) {
-            case "create":
-                return handleRegionCreateCommand(sender, args);
-            case "delete":
-                return handleRegionDeleteCommand(sender, args);
-            default:
-                sender.sendMessage(ChatColor.RED + "Unknown region command. Valid options: create, delete");
-                return true;
-        }
-    }
-
-    /**
-     * Handles the region create command.
-     */
-    private boolean handleRegionCreateCommand(CommandSender sender, String[] args) {
-        // Check permission
-        if (!sender.hasPermission("qc.admin.region.create")) {
-            sender.sendMessage(ChatColor.RED + "You don't have permission to create regions.");
-            return true;
-        }
-
-        // Check if sender is a player
+    private boolean handleCreate(CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
             sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
             return true;
         }
 
-        // Check arguments
-        if (args.length != 9) {
-            sender.sendMessage(ChatColor.RED + "Usage: /qc region create <regionID> <x1> <y1> <z1> <x2> <y2> <z2>");
+        Player player = (Player) sender;
+        
+        if (args.length < 2) {
+            sender.sendMessage(ChatColor.RED + "Usage: /qc create <name> [x1 y1 z1 x2 y2 z2]");
+            sender.sendMessage(ChatColor.YELLOW + "Use /qc stick to get a selection tool");
             return true;
         }
 
-        Player player = (Player) sender;
-        String regionId = args[2];
-        
-        // Parse coordinates
+        String name = args[1];
+        Location min, max;
+
+        if (plugin.getRegionManager().getRegionByName(name) != null) {
+            sender.sendMessage(ChatColor.RED + "A region with this name already exists.");
+            return true;
+        }
+
+        if (args.length >= 8) {
+            // Use provided coordinates
+            try {
+                double x1 = Double.parseDouble(args[2]);
+                double y1 = Double.parseDouble(args[3]);
+                double z1 = Double.parseDouble(args[4]);
+                double x2 = Double.parseDouble(args[5]);
+                double y2 = Double.parseDouble(args[6]);
+                double z2 = Double.parseDouble(args[7]);
+
+                min = new Location(player.getWorld(), Math.min(x1, x2), Math.min(y1, y2), Math.min(z1, z2));
+                max = new Location(player.getWorld(), Math.max(x1, x2), Math.max(y1, y2), Math.max(z1, z2));
+            } catch (NumberFormatException e) {
+                sender.sendMessage(ChatColor.RED + "Invalid coordinates. Please use numbers.");
+                return true;
+            }
+        } else {
+            // Use selection
+            UUID playerId = player.getUniqueId();
+            Location pos1 = pos1Map.get(playerId);
+            Location pos2 = pos2Map.get(playerId);
+
+            if (pos1 == null || pos2 == null) {
+                sender.sendMessage(ChatColor.RED + "Please select two positions first using the selection stick (/qc stick)");
+                return true;
+            }
+
+            min = new Location(player.getWorld(), 
+                Math.min(pos1.getX(), pos2.getX()),
+                Math.min(pos1.getY(), pos2.getY()),
+                Math.min(pos1.getZ(), pos2.getZ()));
+            max = new Location(player.getWorld(),
+                Math.max(pos1.getX(), pos2.getX()),
+                Math.max(pos1.getY(), pos2.getY()),
+                Math.max(pos1.getZ(), pos2.getZ()));
+        }
+
         try {
-            int x1 = Integer.parseInt(args[3]);
-            int y1 = Integer.parseInt(args[4]);
-            int z1 = Integer.parseInt(args[5]);
-            int x2 = Integer.parseInt(args[6]);
-            int y2 = Integer.parseInt(args[7]);
-            int z2 = Integer.parseInt(args[8]);
+            QuantumRegion region = plugin.getRegionManager().createRegion(name, player.getWorld(), min, max);
+            sender.sendMessage(ChatColor.GREEN + "Created quantum region: " + name);
+            sender.sendMessage(ChatColor.YELLOW + "Use /qc capture " + name + " default to capture the current state");
             
-            Vector min = new Vector(x1, y1, z1);
-            Vector max = new Vector(x2, y2, z2);
-            World world = player.getWorld();
-            
-            // Create the region
-            RegionManager regionManager = plugin.getRegionManager();
-            boolean success = regionManager.createRegion(regionId, world, min, max);
-            
-            if (success) {
-                sender.sendMessage(ChatColor.GREEN + "Region '" + regionId + "' created successfully.");
-            } else {
-                sender.sendMessage(ChatColor.RED + "A region with that ID already exists.");
+            return true;
+        } catch (Exception e) {
+            sender.sendMessage(ChatColor.RED + "Failed to create region: " + e.getMessage());
+            return true;
+        }
+    }
+
+    /**
+     * Handles the 'delete' subcommand.
+     */
+    private boolean handleDelete(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            sender.sendMessage(ChatColor.RED + "Usage: /qc delete <region>");
+            return true;
+        }
+
+        String regionName = args[1];
+        QuantumRegion region = plugin.getRegionManager().getRegionByName(regionName);
+
+        if (region == null) {
+            sender.sendMessage(ChatColor.RED + "Region not found: " + regionName);
+            return true;
+        }
+
+        boolean success = plugin.getRegionManager().deleteRegion(region.getId());
+
+        if (success) {
+            sender.sendMessage(ChatColor.GREEN + "Deleted region: " + regionName);
+        } else {
+            sender.sendMessage(ChatColor.RED + "Failed to delete region: " + regionName);
+        }
+
+        return true;
+    }
+
+    /**
+     * Handles the 'list' subcommand.
+     */
+    private boolean handleList(CommandSender sender, String[] args) {
+        Collection<QuantumRegion> regions = plugin.getRegionManager().getAllRegions();
+
+        if (regions.isEmpty()) {
+            sender.sendMessage(ChatColor.YELLOW + "No quantum regions found.");
+            return true;
+        }
+
+        sender.sendMessage(ChatColor.GREEN + "Quantum Regions (" + regions.size() + "):");
+        for (QuantumRegion region : regions) {
+            sender.sendMessage(ChatColor.GREEN + "- " + region.getName() + 
+                " (" + region.getStates().size() + " states, " + 
+                CompressionUtil.formatBytes(region.getTotalMemoryUsage()) + ")");
+        }
+
+        return true;
+    }
+
+    /**
+     * Handles the 'info' subcommand.
+     */
+    private boolean handleInfo(CommandSender sender, String[] args) {
+        if (args.length < 2) {
+            sender.sendMessage(ChatColor.RED + "Usage: /qc info <region>");
+            return true;
+        }
+
+        String regionName = args[1];
+        QuantumRegion region = plugin.getRegionManager().getRegionByName(regionName);
+
+        if (region == null) {
+            sender.sendMessage(ChatColor.RED + "Region not found: " + regionName);
+            return true;
+        }
+
+        sender.sendMessage(ChatColor.GREEN + "=== Region Info: " + region.getName() + " ===");
+        sender.sendMessage(ChatColor.YELLOW + "ID: " + region.getId());
+        sender.sendMessage(ChatColor.YELLOW + "World: " + region.getBounds().getWorld().getName());
+        sender.sendMessage(ChatColor.YELLOW + "Bounds: " + region.getBounds().toString());
+        sender.sendMessage(ChatColor.YELLOW + "States: " + region.getStates().size());
+        sender.sendMessage(ChatColor.YELLOW + "Default State: " + region.getDefaultStateName());
+        sender.sendMessage(ChatColor.YELLOW + "Memory Usage: " + CompressionUtil.formatBytes(region.getTotalMemoryUsage()));
+        
+        sender.sendMessage(ChatColor.GREEN + "States:");
+        for (RegionState state : region.getStates()) {
+            sender.sendMessage(ChatColor.GREEN + "  - " + state.getName() + 
+                " (" + state.getBlockCount() + " blocks, " + 
+                CompressionUtil.formatBytes(state.getMemoryUsage()) + 
+                (state.isCompressed() ? ", compressed" : "") + ")");
+        }
+
+        return true;
+    }
+
+    /**
+     * Handles the 'state' subcommand.
+     */
+    private boolean handleState(CommandSender sender, String[] args) {
+        if (args.length < 3) {
+            sender.sendMessage(ChatColor.RED + "Usage: /qc state <create|delete> <region> <state>");
+            return true;
+        }
+
+        String action = args[1].toLowerCase();
+        String regionName = args[2];
+        
+        QuantumRegion region = plugin.getRegionManager().getRegionByName(regionName);
+        if (region == null) {
+            sender.sendMessage(ChatColor.RED + "Region not found: " + regionName);
+            return true;
+        }
+
+        if (action.equals("create")) {
+            if (args.length < 4) {
+                sender.sendMessage(ChatColor.RED + "Usage: /qc state create <region> <state>");
+                return true;
             }
             
-            return true;
-        } catch (NumberFormatException e) {
-            sender.sendMessage(ChatColor.RED + "Invalid coordinates. Please enter valid numbers.");
-            return true;
-        }
-    }
-
-    /**
-     * Handles the region delete command.
-     */
-    private boolean handleRegionDeleteCommand(CommandSender sender, String[] args) {
-        // Check permission
-        if (!sender.hasPermission("qc.admin.region.delete")) {
-            sender.sendMessage(ChatColor.RED + "You don't have permission to delete regions.");
-            return true;
-        }
-
-        // Check arguments
-        if (args.length != 3) {
-            sender.sendMessage(ChatColor.RED + "Usage: /qc region delete <regionID>");
-            return true;
-        }
-
-        String regionId = args[2];
-        
-        // Delete the region
-        RegionManager regionManager = plugin.getRegionManager();
-        boolean success = regionManager.deleteRegion(regionId);
-        
-        if (success) {
-            sender.sendMessage(ChatColor.GREEN + "Region '" + regionId + "' deleted successfully.");
-        } else {
-            sender.sendMessage(ChatColor.RED + "No region with that ID exists.");
-        }
-        
-        return true;
-    }
-
-    /**
-     * Handles the version subcommand.
-     */
-    private boolean handleVersionCommand(CommandSender sender, String[] args) {
-        if (args.length < 2) {
-            sender.sendMessage(ChatColor.RED + "Usage: /qc version <add|remove> [args]");
-            return true;
-        }
-
-        switch (args[1].toLowerCase()) {
-            case "add":
-                return handleVersionAddCommand(sender, args);
-            case "remove":
-                return handleVersionRemoveCommand(sender, args);
-            default:
-                sender.sendMessage(ChatColor.RED + "Unknown version command. Valid options: add, remove");
+            String stateName = args[3];
+            try {
+                RegionState state = region.createState(stateName);
+                sender.sendMessage(ChatColor.GREEN + "Created state: " + stateName);
+                sender.sendMessage(ChatColor.YELLOW + "Use /qc capture " + regionName + " " + stateName + " to capture blocks");
                 return true;
-        }
-    }
-
-    /**
-     * Handles the version add command.
-     */
-    private boolean handleVersionAddCommand(CommandSender sender, String[] args) {
-        // Check permission
-        if (!sender.hasPermission("qc.admin.version.add")) {
-            sender.sendMessage(ChatColor.RED + "You don't have permission to add versions.");
+            } catch (IllegalArgumentException e) {
+                sender.sendMessage(ChatColor.RED + e.getMessage());
+                return true;
+            }
+        } else if (action.equals("delete")) {
+            if (args.length < 4) {
+                sender.sendMessage(ChatColor.RED + "Usage: /qc state delete <region> <state>");
+                return true;
+            }
+            
+            String stateName = args[3];
+            boolean success = region.removeState(stateName);
+            
+            if (success) {
+                sender.sendMessage(ChatColor.GREEN + "Deleted state: " + stateName);
+            } else {
+                sender.sendMessage(ChatColor.RED + "Failed to delete state: " + stateName);
+            }
             return true;
-        }
-
-        // Check arguments
-        if (args.length != 4) {
-            sender.sendMessage(ChatColor.RED + "Usage: /qc version add <regionID> <versionName>");
-            return true;
-        }
-
-        String regionId = args[2];
-        String versionName = args[3];
-        
-        // Add the version
-        RegionManager regionManager = plugin.getRegionManager();
-        boolean success = regionManager.addVersion(regionId, versionName);
-        
-        if (success) {
-            sender.sendMessage(ChatColor.GREEN + "Version '" + versionName + "' added to region '" + regionId + "' successfully.");
         } else {
-            sender.sendMessage(ChatColor.RED + "No region with that ID exists.");
+            sender.sendMessage(ChatColor.RED + "Unknown action: " + action);
+            sender.sendMessage(ChatColor.RED + "Usage: /qc state <create|delete> <region> <state>");
+            return true;
         }
-        
-        return true;
+    }
+
+    // Getters for selection positions (used by listeners)
+    public Map<UUID, Location> getPos1Map() { return pos1Map; }
+    public Map<UUID, Location> getPos2Map() { return pos2Map; }
+
+    /**
+     * Sends the help message to a sender.
+     */
+    private void sendHelp(CommandSender sender) {
+        sender.sendMessage(ChatColor.GREEN + "=== QuantumCraft Commands ===");
+        sender.sendMessage(ChatColor.GREEN + "/qc create <name> [coords] - Create a new quantum region");
+        sender.sendMessage(ChatColor.GREEN + "/qc delete <region> - Delete a quantum region");
+        sender.sendMessage(ChatColor.GREEN + "/qc list - List all quantum regions");
+        sender.sendMessage(ChatColor.GREEN + "/qc info <region> - Show region information");
+        sender.sendMessage(ChatColor.GREEN + "/qc state create <region> <state> - Create a new state");
+        sender.sendMessage(ChatColor.GREEN + "/qc state delete <region> <state> - Delete a state");
+        sender.sendMessage(ChatColor.GREEN + "/qc switch <region> <state> - Switch to a state");
+        sender.sendMessage(ChatColor.GREEN + "/qc reality [region] - Enter reality mode");
+        sender.sendMessage(ChatColor.GREEN + "/qc capture <region> <state> - Capture current blocks");
+        sender.sendMessage(ChatColor.GREEN + "/qc stick - Get the selection tool");
+        sender.sendMessage(ChatColor.GREEN + "/qc stats - Show plugin statistics");
+        sender.sendMessage(ChatColor.GREEN + "/qc refresh [region] - Refresh quantum regions");
+        sender.sendMessage(ChatColor.GREEN + "/qc reload - Reload regions from disk");
     }
 
     /**
-     * Handles the version remove command.
+     * Handles the 'switch' subcommand.
      */
-    private boolean handleVersionRemoveCommand(CommandSender sender, String[] args) {
-        // Check permission
-        if (!sender.hasPermission("qc.admin.version.remove")) {
-            sender.sendMessage(ChatColor.RED + "You don't have permission to remove versions.");
-            return true;
-        }
-
-        // Check arguments
-        if (args.length != 4) {
-            sender.sendMessage(ChatColor.RED + "Usage: /qc version remove <regionID> <versionName>");
-            return true;
-        }
-
-        String regionId = args[2];
-        String versionName = args[3];
-        
-        // Remove the version
-        RegionManager regionManager = plugin.getRegionManager();
-        boolean success = regionManager.removeVersion(regionId, versionName);
-        
-        if (success) {
-            sender.sendMessage(ChatColor.GREEN + "Version '" + versionName + "' removed from region '" + regionId + "' successfully.");
-        } else {
-            sender.sendMessage(ChatColor.RED + "No region with that ID exists, or the version doesn't exist.");
-        }
-        
-        return true;
-    }
-
-    /**
-     * Handles the select command.
-     */
-    private boolean handleSelectCommand(CommandSender sender, String[] args) {
-        // Check if sender is a player
+    private boolean handleSwitch(CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
             sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
             return true;
         }
 
-        // Check arguments
-        if (args.length != 3) {
-            sender.sendMessage(ChatColor.RED + "Usage: /qc select <regionID> <versionName>");
+        if (args.length < 3) {
+            sender.sendMessage(ChatColor.RED + "Usage: /qc switch <region> <state>");
             return true;
         }
 
         Player player = (Player) sender;
-        String regionId = args[1];
-        String versionName = args[2];
-        
-        // Check if the region exists
-        RegionManager regionManager = plugin.getRegionManager();
-        Region region = regionManager.getRegion(regionId);
-        
+        String regionName = args[1];
+        String stateName = args[2];
+
+        QuantumRegion region = plugin.getRegionManager().getRegionByName(regionName);
         if (region == null) {
-            sender.sendMessage(ChatColor.RED + "No region with that ID exists.");
+            sender.sendMessage(ChatColor.RED + "Region not found: " + regionName);
             return true;
         }
-        
-        // Check if the version exists
-        if (region.getVersion(versionName) == null) {
-            sender.sendMessage(ChatColor.RED + "No version with that name exists for this region.");
+
+        RegionState state = region.getState(stateName);
+        if (state == null) {
+            sender.sendMessage(ChatColor.RED + "State not found: " + stateName);
             return true;
         }
-        
-        // Set the player's version
-        plugin.getPlayerManager().setPlayerVersion(player, regionId, versionName);
-        
-        // Send the region version to the player if they're in the region
-        if (region.contains(player.getLocation())) {
-            PacketManager packetManager = plugin.getPacketManager();
-            packetManager.sendRegionVersion(player, region, region.getVersion(versionName));
+
+        try {
+            plugin.getPlayerStateManager().setPlayerRegionState(player, region, stateName);
+            sender.sendMessage(ChatColor.GREEN + "Switched to state: " + stateName + " in region: " + regionName);
+        } catch (Exception e) {
+            sender.sendMessage(ChatColor.RED + "Failed to switch state: " + e.getMessage());
         }
-        
-        sender.sendMessage(ChatColor.GREEN + "You are now viewing version '" + versionName + "' of region '" + regionId + "'.");
+
         return true;
     }
 
     /**
-     * Sends help information to the sender.
+     * Handles the 'reality' subcommand.
      */
-    private void sendHelp(CommandSender sender) {
-        sender.sendMessage(ChatColor.GOLD + "=== QuantumCraft Help ===");
-        sender.sendMessage(ChatColor.YELLOW + "/qc region create <regionID> <x1> <y1> <z1> <x2> <y2> <z2>" + ChatColor.WHITE + " - Create a new region");
-        sender.sendMessage(ChatColor.YELLOW + "/qc region delete <regionID>" + ChatColor.WHITE + " - Delete a region");
-        sender.sendMessage(ChatColor.YELLOW + "/qc version add <regionID> <versionName>" + ChatColor.WHITE + " - Add a version to a region");
-        sender.sendMessage(ChatColor.YELLOW + "/qc version remove <regionID> <versionName>" + ChatColor.WHITE + " - Remove a version from a region");
-        sender.sendMessage(ChatColor.YELLOW + "/qc select <regionID> <versionName>" + ChatColor.WHITE + " - Select a version to view");
+    private boolean handleReality(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player)) {
+            sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
+            return true;
+        }
+
+        Player player = (Player) sender;
+
+        if (args.length > 1) {
+            // Reality mode for specific region
+            String regionName = args[1];
+            QuantumRegion region = plugin.getRegionManager().getRegionByName(regionName);
+
+            if (region == null) {
+                sender.sendMessage(ChatColor.RED + "Region not found: " + regionName);
+                return true;
+            }
+
+            plugin.getPlayerStateManager().setPlayerReality(player, region);
+            sender.sendMessage(ChatColor.GREEN + "Entered reality mode for region: " + regionName);
+            sender.sendMessage(ChatColor.YELLOW + "You can now modify blocks normally. Use /qc switch to return to a state.");
+        } else {
+            // Reality mode for all regions
+            plugin.getPlayerStateManager().clearPlayerReality(player);
+            sender.sendMessage(ChatColor.GREEN + "Entered reality mode for all regions.");
+            sender.sendMessage(ChatColor.YELLOW + "You can now modify blocks normally. Use /qc switch to return to states.");
+        }
+
+        return true;
+    }
+
+    /**
+     * Handles the 'capture' subcommand.
+     */
+    private boolean handleCapture(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player)) {
+            sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
+            return true;
+        }
+
+        if (args.length < 3) {
+            sender.sendMessage(ChatColor.RED + "Usage: /qc capture <region> <state>");
+            return true;
+        }
+
+        String regionName = args[1];
+        String stateName = args[2];
+
+        QuantumRegion region = plugin.getRegionManager().getRegionByName(regionName);
+        if (region == null) {
+            sender.sendMessage(ChatColor.RED + "Region not found: " + regionName);
+            return true;
+        }
+
+        RegionState state = region.getState(stateName);
+        if (state == null) {
+            sender.sendMessage(ChatColor.RED + "State not found: " + stateName);
+            return true;
+        }
+
+        try {
+            sender.sendMessage(ChatColor.YELLOW + "Capturing current state... This may take a moment for large regions.");
+            state.captureCurrentState();
+            sender.sendMessage(ChatColor.GREEN + "Captured current blocks for state: " + stateName);
+            sender.sendMessage(ChatColor.GREEN + "Captured " + state.getBlockCount() + " blocks (" +
+                CompressionUtil.formatBytes(state.getMemoryUsage()) + ")");
+
+            // Update all players viewing this region
+            plugin.getPlayerStateManager().updateAllPlayersView(region);
+        } catch (Exception e) {
+            sender.sendMessage(ChatColor.RED + "Failed to capture state: " + e.getMessage());
+        }
+
+        return true;
+    }
+
+    /**
+     * Handles the 'stick' subcommand.
+     */
+    private boolean handleStick(CommandSender sender) {
+        if (!(sender instanceof Player)) {
+            sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
+            return true;
+        }
+
+        Player player = (Player) sender;
+        ItemStack stick = new ItemStack(SELECTION_STICK_MATERIAL);
+        ItemMeta meta = stick.getItemMeta();
+        meta.setDisplayName(ChatColor.GOLD + "QuantumCraft Selection Tool");
+        meta.setLore(Arrays.asList(
+            ChatColor.GRAY + "Left click to set position 1",
+            ChatColor.GRAY + "Right click to set position 2",
+            ChatColor.GRAY + "Use /qc create <name> to create region"
+        ));
+        stick.setItemMeta(meta);
+
+        player.getInventory().addItem(stick);
+        sender.sendMessage(ChatColor.GREEN + "Given you a QuantumCraft selection tool!");
+        sender.sendMessage(ChatColor.YELLOW + "Left click to set position 1, right click to set position 2");
+
+        return true;
+    }
+
+    /**
+     * Handles the 'stats' subcommand.
+     */
+    private boolean handleStats(CommandSender sender, String[] args) {
+        Map<String, Object> regionStats = plugin.getRegionManager().getStatistics();
+        Map<String, Object> playerStats = plugin.getPlayerStateManager().getStatistics();
+
+        sender.sendMessage(ChatColor.GREEN + "=== QuantumCraft Statistics ===");
+        sender.sendMessage(ChatColor.YELLOW + "Regions: " + regionStats.get("totalRegions"));
+        sender.sendMessage(ChatColor.YELLOW + "States: " + regionStats.get("totalStates"));
+        sender.sendMessage(ChatColor.YELLOW + "Total Blocks: " + regionStats.get("totalBlocks"));
+        sender.sendMessage(ChatColor.YELLOW + "Memory Usage: " + CompressionUtil.formatBytes((Long) regionStats.get("totalMemoryUsage")));
+        sender.sendMessage(ChatColor.YELLOW + "Players with States: " + playerStats.get("playersWithStates"));
+        sender.sendMessage(ChatColor.YELLOW + "Players in Reality: " + playerStats.get("playersInReality"));
+
+        return true;
+    }
+
+    /**
+     * Handles the 'refresh' subcommand.
+     */
+    private boolean handleRefresh(CommandSender sender, String[] args) {
+        if (!(sender instanceof Player)) {
+            sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
+            return true;
+        }
+
+        Player player = (Player) sender;
+
+        if (args.length > 1) {
+            // Refresh specific region
+            String regionName = args[1];
+            QuantumRegion region = plugin.getRegionManager().getRegionByName(regionName);
+
+            if (region == null) {
+                sender.sendMessage(ChatColor.RED + "Region not found: " + regionName);
+                return true;
+            }
+
+            plugin.getPlayerStateManager().updatePlayerView(player, region);
+            sender.sendMessage(ChatColor.GREEN + "Refreshed region: " + regionName);
+        } else {
+            // Refresh all regions for the player
+            plugin.getPlayerStateManager().refreshAllRegionsForPlayer(player);
+            sender.sendMessage(ChatColor.GREEN + "Refreshed all quantum regions for you.");
+        }
+
+        return true;
+    }
+
+    /**
+     * Handles the 'reload' subcommand.
+     */
+    private boolean handleReload(CommandSender sender, String[] args) {
+        sender.sendMessage(ChatColor.YELLOW + "Reloading quantum regions from disk...");
+
+        try {
+            plugin.getRegionManager().reloadAllRegions();
+            sender.sendMessage(ChatColor.GREEN + "Successfully reloaded " +
+                plugin.getRegionManager().getRegionCount() + " quantum regions.");
+
+            // Refresh all online players
+            for (org.bukkit.entity.Player player : plugin.getServer().getOnlinePlayers()) {
+                plugin.getPlayerStateManager().refreshAllRegionsForPlayer(player);
+            }
+
+            sender.sendMessage(ChatColor.GREEN + "Refreshed quantum states for all online players.");
+
+        } catch (Exception e) {
+            sender.sendMessage(ChatColor.RED + "Failed to reload regions: " + e.getMessage());
+            plugin.getLogger().severe("Failed to reload regions: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return true;
     }
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return filterStartingWith(args[0], Arrays.asList("region", "version", "select", "help"));
-        }
-        
-        if (args.length == 2) {
-            switch (args[0].toLowerCase()) {
-                case "region":
-                    return filterStartingWith(args[1], Arrays.asList("create", "delete"));
-                case "version":
-                    return filterStartingWith(args[1], Arrays.asList("add", "remove"));
-                case "select":
-                    return getRegionIds();
+            return Arrays.asList("create", "delete", "list", "info", "state", "switch", "reality", "capture", "stick", "stats", "refresh", "reload")
+                    .stream()
+                    .filter(s -> s.startsWith(args[0].toLowerCase()))
+                    .collect(Collectors.toList());
+        } else if (args.length == 2) {
+            String subCommand = args[0].toLowerCase();
+            if (subCommand.equals("create") || subCommand.equals("stick") || subCommand.equals("list") || subCommand.equals("stats") || subCommand.equals("reload")) {
+                return new ArrayList<>();
+            } else if (subCommand.equals("refresh")) {
+                return plugin.getRegionManager().getAllRegions()
+                        .stream()
+                        .map(QuantumRegion::getName)
+                        .filter(s -> s.toLowerCase().startsWith(args[1].toLowerCase()))
+                        .collect(Collectors.toList());
+            } else if (subCommand.equals("state")) {
+                return Arrays.asList("create", "delete")
+                        .stream()
+                        .filter(s -> s.startsWith(args[1].toLowerCase()))
+                        .collect(Collectors.toList());
+            } else {
+                return plugin.getRegionManager().getAllRegions()
+                        .stream()
+                        .map(QuantumRegion::getName)
+                        .filter(s -> s.toLowerCase().startsWith(args[1].toLowerCase()))
+                        .collect(Collectors.toList());
+            }
+        } else if (args.length == 3) {
+            String subCommand = args[0].toLowerCase();
+            String regionName = args[1];
+            QuantumRegion region = plugin.getRegionManager().getRegionByName(regionName);
+
+            if (region != null && (subCommand.equals("switch") || subCommand.equals("capture") ||
+                                  (subCommand.equals("state") && args.length == 3))) {
+                return region.getStateNames()
+                        .stream()
+                        .filter(s -> s.toLowerCase().startsWith(args[2].toLowerCase()))
+                        .collect(Collectors.toList());
+            }
+        } else if (args.length == 4 && args[0].equalsIgnoreCase("state")) {
+            String regionName = args[2];
+            QuantumRegion region = plugin.getRegionManager().getRegionByName(regionName);
+
+            if (region != null) {
+                return region.getStateNames()
+                        .stream()
+                        .filter(s -> s.toLowerCase().startsWith(args[3].toLowerCase()))
+                        .collect(Collectors.toList());
             }
         }
-        
-        if (args.length == 3) {
-            switch (args[0].toLowerCase()) {
-                case "region":
-                    if (args[1].equalsIgnoreCase("delete")) {
-                        return getRegionIds();
-                    }
-                    break;
-                case "version":
-                    return getRegionIds();
-                case "select":
-                    return getVersionNames(args[2]);
-            }
-        }
-        
-        if (args.length == 4) {
-            if (args[0].equalsIgnoreCase("version")) {
-                return getVersionNames(args[2]);
-            }
-        }
-        
-        return Collections.emptyList();
-    }
 
-    /**
-     * Filters a list of strings to only include those starting with the given prefix.
-     */
-    private List<String> filterStartingWith(String prefix, List<String> options) {
-        return options.stream()
-                .filter(option -> option.toLowerCase().startsWith(prefix.toLowerCase()))
-                .collect(Collectors.toList());
-    }
-
-    /**
-     * Gets a list of all region IDs.
-     */
-    private List<String> getRegionIds() {
-        RegionManager regionManager = plugin.getRegionManager();
-        return new ArrayList<>(regionManager.getRegions().keySet());
-    }
-
-    /**
-     * Gets a list of all version names for a region.
-     */
-    private List<String> getVersionNames(String regionId) {
-        RegionManager regionManager = plugin.getRegionManager();
-        Region region = regionManager.getRegion(regionId);
-        
-        if (region == null) {
-            return Collections.emptyList();
-        }
-        
-        return new ArrayList<>(region.getVersions().keySet());
+        return new ArrayList<>();
     }
 }

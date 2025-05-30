@@ -1,0 +1,42 @@
+# QuantumCraft Configuration
+
+# Storage settings
+storage:
+  # Directory to store region data (relative to plugin folder)
+  data-directory: "regions"
+  
+  # Enable compression for region data
+  enable-compression: true
+  
+  # Auto-save interval in minutes (0 to disable)
+  auto-save-interval: 5
+
+# Performance settings
+performance:
+  # Maximum number of chunks to process per tick when updating player views
+  max-chunks-per-tick: 10
+  
+  # Maximum number of blocks to send per packet
+  max-blocks-per-packet: 1000
+  
+  # Enable async processing for large regions
+  enable-async-processing: true
+
+# Debug settings
+debug:
+  # Enable debug logging
+  enable-debug: false
+  
+  # Log packet sending
+  log-packets: false
+  
+  # Log region operations
+  log-regions: false
+
+# Default settings for new regions
+defaults:
+  # Default version name for new regions
+  default-version-name: "default"
+  
+  # Automatically capture state when creating regions
+  auto-capture-on-create: true
