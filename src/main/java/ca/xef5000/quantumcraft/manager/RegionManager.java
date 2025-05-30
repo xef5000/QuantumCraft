@@ -190,7 +190,6 @@ public class RegionManager {
     /**
      * Loads regions from the regions.yml file.
      */
-    @SuppressWarnings("unchecked")
     private void loadRegions() {
         regions.clear();
         
@@ -207,7 +206,12 @@ public class RegionManager {
         
         for (String regionId : regionsSection.getKeys(false)) {
             try {
-                Map<String, Object> regionMap = (Map<String, Object>) regionsSection.get(regionId);
+                ConfigurationSection regionConfigSection = regionsSection.getConfigurationSection(regionId);
+                if (regionConfigSection == null) {
+                    plugin.getLogger().log(Level.WARNING, "Region section is null for region ID: " + regionId);
+                    continue;
+                }
+                Map<String, Object> regionMap = regionConfigSection.getValues(false);
                 Region region = new Region(regionMap);
                 regions.put(regionId, region);
             } catch (Exception e) {
@@ -239,3 +243,4 @@ public class RegionManager {
         }
     }
 }
+

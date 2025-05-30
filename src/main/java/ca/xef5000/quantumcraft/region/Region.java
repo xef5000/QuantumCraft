@@ -4,6 +4,7 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.configuration.serialization.ConfigurationSerializable;
 import org.bukkit.util.Vector;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -42,7 +43,6 @@ public class Region implements ConfigurationSerializable {
      *
      * @param map The serialized map
      */
-    @SuppressWarnings("unchecked")
     public Region(Map<String, Object> map) {
         this.id = (String) map.get("id");
         this.world = UUID.fromString((String) map.get("world")).equals(UUID.fromString("00000000-0000-0000-0000-000000000000")) ? null : org.bukkit.Bukkit.getWorld(UUID.fromString((String) map.get("world")));
@@ -50,10 +50,15 @@ public class Region implements ConfigurationSerializable {
         this.max = (Vector) map.get("max");
         this.versions = new HashMap<>();
         
-        Map<String, Map<String, Object>> versionMap = (Map<String, Map<String, Object>>) map.get("versions");
-        if (versionMap != null) {
-            for (Map.Entry<String, Map<String, Object>> entry : versionMap.entrySet()) {
-                this.versions.put(entry.getKey(), new RegionVersion(entry.getValue()));
+        Object versionsData = map.get("versions");
+        if (versionsData instanceof org.bukkit.configuration.ConfigurationSection versionsSection) {
+            for (String versionName : versionsSection.getKeys(false)) {
+                org.bukkit.configuration.ConfigurationSection versionEntrySection = versionsSection.getConfigurationSection(versionName);
+                if (versionEntrySection != null) {
+                    // RegionVersion constructor expects Map<String, Object>
+                    // versionEntrySection.getValues(false) returns Map<String, Object>
+                    this.versions.put(versionName, new RegionVersion(versionEntrySection.getValues(false)));
+                }
             }
         }
     }
@@ -154,7 +159,7 @@ public class Region implements ConfigurationSerializable {
      * @return The serialized map
      */
     @Override
-    public Map<String, Object> serialize() {
+    public @NotNull Map<String, Object> serialize() {
         Map<String, Object> map = new HashMap<>();
         map.put("id", id);
         map.put("world", world != null ? world.getUID().toString() : "00000000-0000-0000-0000-000000000000");
@@ -183,3 +188,4 @@ public class Region implements ConfigurationSerializable {
         return Objects.hash(id);
     }
 }
+

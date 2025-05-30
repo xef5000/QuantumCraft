@@ -4,6 +4,7 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.configuration.serialization.ConfigurationSerializable;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -31,24 +32,72 @@ public class RegionVersion implements ConfigurationSerializable {
     public RegionVersion(Map<String, Object> map) {
         this.blockStates = new HashMap<>();
         
-        Map<String, Map<String, Object>> blockStateMap = (Map<String, Map<String, Object>>) map.get("blockStates");
-        if (blockStateMap != null) {
-            for (Map.Entry<String, Map<String, Object>> entry : blockStateMap.entrySet()) {
-                String[] parts = entry.getKey().split(",");
+        Object blockStatesData = map.get("blockStates");
+        if (blockStatesData instanceof org.bukkit.configuration.ConfigurationSection blockStateSection) {
+            for (String key : blockStateSection.getKeys(false)) {
+                org.bukkit.configuration.ConfigurationSection entrySection = blockStateSection.getConfigurationSection(key);
+                if (entrySection != null) {
+                    String[] parts = key.split(",");
+                    if (parts.length != 4) continue;
+
+                    try {
+                        String worldName = parts[0];
+                        double x = Double.parseDouble(parts[1]);
+                        double y = Double.parseDouble(parts[2]);
+                        double z = Double.parseDouble(parts[3]);
+
+                        Location location = new Location(org.bukkit.Bukkit.getWorld(worldName), x, y, z);
+                        BlockState blockState = new BlockState(entrySection.getValues(false));
+
+                        blockStates.put(location, blockState);
+                    } catch (NumberFormatException | NullPointerException e) {
+                        // Skip invalid entries
+                    } catch (IllegalArgumentException e) {
+                        // Skip invalid block state data
+                    }
+                }
+            }
+        } else if (blockStatesData instanceof Map) {
+            // Fallback for manual Map structure or if ConfigurationSection instanceof check failed
+            Map<String, ?> outerMap = (Map<String, ?>) blockStatesData;
+
+            for (Map.Entry<String, ?> rawEntry : outerMap.entrySet()) {
+                String locationKey = rawEntry.getKey();
+                Object innerValue = rawEntry.getValue();
+
+                Map<String, Object> blockStateConstructorMap = null;
+
+                if (innerValue instanceof org.bukkit.configuration.ConfigurationSection innerCs) {
+                    blockStateConstructorMap = innerCs.getValues(false);
+                } else if (innerValue instanceof Map) {
+                    try {
+                        blockStateConstructorMap = (Map<String, Object>) innerValue;
+                    } catch (ClassCastException e) {
+                        // Value was a Map but not Map<String, Object>. Skip.
+                        continue;
+                    }
+                } else {
+                    // Value is neither ConfigurationSection nor Map. Skip.
+                    continue;
+                }
+
+                if (blockStateConstructorMap == null) continue;
+
+                String[] parts = locationKey.split(",");
                 if (parts.length != 4) continue;
-                
                 try {
                     String worldName = parts[0];
                     double x = Double.parseDouble(parts[1]);
                     double y = Double.parseDouble(parts[2]);
                     double z = Double.parseDouble(parts[3]);
-                    
                     Location location = new Location(org.bukkit.Bukkit.getWorld(worldName), x, y, z);
-                    BlockState blockState = new BlockState(entry.getValue());
-                    
+
+                    BlockState blockState = new BlockState(blockStateConstructorMap);
                     blockStates.put(location, blockState);
                 } catch (NumberFormatException | NullPointerException e) {
-                    // Skip invalid entries
+                    // Skip invalid entries (e.g., world not found, bad number format)
+                } catch (IllegalArgumentException e) {
+                    // Skip invalid block state data (e.g., bad material name)
                 }
             }
         }
@@ -90,7 +139,7 @@ public class RegionVersion implements ConfigurationSerializable {
      * @return The serialized map
      */
     @Override
-    public Map<String, Object> serialize() {
+    public @NotNull Map<String, Object> serialize() {
         Map<String, Object> map = new HashMap<>();
         
         Map<String, Map<String, Object>> blockStateMap = new HashMap<>();
@@ -156,7 +205,7 @@ public class RegionVersion implements ConfigurationSerializable {
          * @return The serialized map
          */
         @Override
-        public Map<String, Object> serialize() {
+        public @NotNull Map<String, Object> serialize() {
             Map<String, Object> map = new HashMap<>();
             map.put("material", material.name());
             map.put("blockData", blockData.getAsString());
@@ -177,3 +226,4 @@ public class RegionVersion implements ConfigurationSerializable {
         }
     }
 }
+

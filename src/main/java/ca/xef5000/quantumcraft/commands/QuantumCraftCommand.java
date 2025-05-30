@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 /**
  * Handles commands for the FakeRegion plugin.
  */
-public class FakeRegionCommand implements CommandExecutor, TabCompleter {
+public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
     private final QuantumCraft plugin;
 
     /**
@@ -30,7 +30,7 @@ public class FakeRegionCommand implements CommandExecutor, TabCompleter {
      *
      * @param plugin The plugin instance
      */
-    public FakeRegionCommand(QuantumCraft plugin) {
+    public QuantumCraftCommand(QuantumCraft plugin) {
         this.plugin = plugin;
     }
 
@@ -52,7 +52,7 @@ public class FakeRegionCommand implements CommandExecutor, TabCompleter {
                 sendHelp(sender);
                 return true;
             default:
-                sender.sendMessage(ChatColor.RED + "Unknown command. Type /fr help for help.");
+                sender.sendMessage(ChatColor.RED + "Unknown command. Type /qc help for help.");
                 return true;
         }
     }
@@ -62,7 +62,7 @@ public class FakeRegionCommand implements CommandExecutor, TabCompleter {
      */
     private boolean handleRegionCommand(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(ChatColor.RED + "Usage: /fr region <create|delete> [args]");
+            sender.sendMessage(ChatColor.RED + "Usage: /qc region <create|delete> [args]");
             return true;
         }
 
@@ -82,7 +82,7 @@ public class FakeRegionCommand implements CommandExecutor, TabCompleter {
      */
     private boolean handleRegionCreateCommand(CommandSender sender, String[] args) {
         // Check permission
-        if (!sender.hasPermission("fr.admin.region.create")) {
+        if (!sender.hasPermission("qc.admin.region.create")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to create regions.");
             return true;
         }
@@ -95,7 +95,7 @@ public class FakeRegionCommand implements CommandExecutor, TabCompleter {
 
         // Check arguments
         if (args.length != 9) {
-            sender.sendMessage(ChatColor.RED + "Usage: /fr region create <regionID> <x1> <y1> <z1> <x2> <y2> <z2>");
+            sender.sendMessage(ChatColor.RED + "Usage: /qc region create <regionID> <x1> <y1> <z1> <x2> <y2> <z2>");
             return true;
         }
 
@@ -137,14 +137,14 @@ public class FakeRegionCommand implements CommandExecutor, TabCompleter {
      */
     private boolean handleRegionDeleteCommand(CommandSender sender, String[] args) {
         // Check permission
-        if (!sender.hasPermission("fr.admin.region.delete")) {
+        if (!sender.hasPermission("qc.admin.region.delete")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to delete regions.");
             return true;
         }
 
         // Check arguments
         if (args.length != 3) {
-            sender.sendMessage(ChatColor.RED + "Usage: /fr region delete <regionID>");
+            sender.sendMessage(ChatColor.RED + "Usage: /qc region delete <regionID>");
             return true;
         }
 
@@ -168,7 +168,7 @@ public class FakeRegionCommand implements CommandExecutor, TabCompleter {
      */
     private boolean handleVersionCommand(CommandSender sender, String[] args) {
         if (args.length < 2) {
-            sender.sendMessage(ChatColor.RED + "Usage: /fr version <add|remove> [args]");
+            sender.sendMessage(ChatColor.RED + "Usage: /qc version <add|remove> [args]");
             return true;
         }
 
@@ -188,14 +188,14 @@ public class FakeRegionCommand implements CommandExecutor, TabCompleter {
      */
     private boolean handleVersionAddCommand(CommandSender sender, String[] args) {
         // Check permission
-        if (!sender.hasPermission("fr.admin.version.add")) {
+        if (!sender.hasPermission("qc.admin.version.add")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to add versions.");
             return true;
         }
 
         // Check arguments
         if (args.length != 4) {
-            sender.sendMessage(ChatColor.RED + "Usage: /fr version add <regionID> <versionName>");
+            sender.sendMessage(ChatColor.RED + "Usage: /qc version add <regionID> <versionName>");
             return true;
         }
 
@@ -220,14 +220,14 @@ public class FakeRegionCommand implements CommandExecutor, TabCompleter {
      */
     private boolean handleVersionRemoveCommand(CommandSender sender, String[] args) {
         // Check permission
-        if (!sender.hasPermission("fr.admin.version.remove")) {
+        if (!sender.hasPermission("qc.admin.version.remove")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to remove versions.");
             return true;
         }
 
         // Check arguments
         if (args.length != 4) {
-            sender.sendMessage(ChatColor.RED + "Usage: /fr version remove <regionID> <versionName>");
+            sender.sendMessage(ChatColor.RED + "Usage: /qc version remove <regionID> <versionName>");
             return true;
         }
 
@@ -259,7 +259,7 @@ public class FakeRegionCommand implements CommandExecutor, TabCompleter {
 
         // Check arguments
         if (args.length != 3) {
-            sender.sendMessage(ChatColor.RED + "Usage: /fr select <regionID> <versionName>");
+            sender.sendMessage(ChatColor.RED + "Usage: /qc select <regionID> <versionName>");
             return true;
         }
 
@@ -299,12 +299,12 @@ public class FakeRegionCommand implements CommandExecutor, TabCompleter {
      * Sends help information to the sender.
      */
     private void sendHelp(CommandSender sender) {
-        sender.sendMessage(ChatColor.GOLD + "=== FakeRegion Help ===");
-        sender.sendMessage(ChatColor.YELLOW + "/fr region create <regionID> <x1> <y1> <z1> <x2> <y2> <z2>" + ChatColor.WHITE + " - Create a new region");
-        sender.sendMessage(ChatColor.YELLOW + "/fr region delete <regionID>" + ChatColor.WHITE + " - Delete a region");
-        sender.sendMessage(ChatColor.YELLOW + "/fr version add <regionID> <versionName>" + ChatColor.WHITE + " - Add a version to a region");
-        sender.sendMessage(ChatColor.YELLOW + "/fr version remove <regionID> <versionName>" + ChatColor.WHITE + " - Remove a version from a region");
-        sender.sendMessage(ChatColor.YELLOW + "/fr select <regionID> <versionName>" + ChatColor.WHITE + " - Select a version to view");
+        sender.sendMessage(ChatColor.GOLD + "=== QuantumCraft Help ===");
+        sender.sendMessage(ChatColor.YELLOW + "/qc region create <regionID> <x1> <y1> <z1> <x2> <y2> <z2>" + ChatColor.WHITE + " - Create a new region");
+        sender.sendMessage(ChatColor.YELLOW + "/qc region delete <regionID>" + ChatColor.WHITE + " - Delete a region");
+        sender.sendMessage(ChatColor.YELLOW + "/qc version add <regionID> <versionName>" + ChatColor.WHITE + " - Add a version to a region");
+        sender.sendMessage(ChatColor.YELLOW + "/qc version remove <regionID> <versionName>" + ChatColor.WHITE + " - Remove a version from a region");
+        sender.sendMessage(ChatColor.YELLOW + "/qc select <regionID> <versionName>" + ChatColor.WHITE + " - Select a version to view");
     }
 
     @Override

@@ -1,6 +1,6 @@
 package ca.xef5000.quantumcraft;
 
-import ca.xef5000.quantumcraft.commands.FakeRegionCommand;
+import ca.xef5000.quantumcraft.commands.QuantumCraftCommand;
 import ca.xef5000.quantumcraft.listeners.BlockListener;
 import ca.xef5000.quantumcraft.listeners.PlayerListener;
 import ca.xef5000.quantumcraft.manager.PlayerManager;
@@ -30,7 +30,7 @@ public final class QuantumCraft extends JavaPlugin {
         this.packetManager = new PacketManager(this);
 
         // Register command
-        getCommand("fr").setExecutor(new FakeRegionCommand(this));
+        getCommand("quantumcraft").setExecutor(new QuantumCraftCommand(this));
 
         // Register event listeners
         getServer().getPluginManager().registerEvents(new PlayerListener(this), this);

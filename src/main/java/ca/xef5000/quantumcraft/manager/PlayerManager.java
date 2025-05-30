@@ -131,7 +131,6 @@ public class PlayerManager {
     /**
      * Loads player data from the player_data.yml file.
      */
-    @SuppressWarnings("unchecked")
     private void loadPlayerData() {
         playerVersions.clear();
         
@@ -147,8 +146,10 @@ public class PlayerManager {
                 Map<String, String> versions = new HashMap<>();
                 
                 // Load the player's version assignments
-                Map<String, Object> versionMap = (Map<String, Object>) config.get(uuidString);
-                if (versionMap != null) {
+                org.bukkit.configuration.ConfigurationSection section = config.getConfigurationSection(uuidString);
+                if (section != null) {
+                    Map<String, Object> versionMap = section.getValues(false);
+                    // section.getValues(false) returns an empty map if no keys, so no need for null check
                     for (Map.Entry<String, Object> entry : versionMap.entrySet()) {
                         versions.put(entry.getKey(), entry.getValue().toString());
                     }
@@ -181,3 +182,4 @@ public class PlayerManager {
         }
     }
 }
+
