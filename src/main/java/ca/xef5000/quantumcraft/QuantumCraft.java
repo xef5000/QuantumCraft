@@ -42,6 +42,9 @@ public final class QuantumCraft extends JavaPlugin {
         // This ensures regions are available before players can join
         regionManager.loadAllRegionsSync();
 
+        // Initialize player state manager and load player states
+        playerStateManager.initialize();
+
         getLogger().info("QuantumCraft has been enabled!");
         getLogger().info("Quantum superposition system initialized - reality is now optional!");
     }
@@ -51,6 +54,11 @@ public final class QuantumCraft extends JavaPlugin {
         // Save all regions
         if (regionManager != null) {
             regionManager.shutdown();
+        }
+
+        // Save all player states
+        if (playerStateManager != null) {
+            playerStateManager.shutdown();
         }
 
         // Clean up packet interceptor

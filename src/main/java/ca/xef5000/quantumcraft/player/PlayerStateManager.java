@@ -3,11 +3,13 @@ package ca.xef5000.quantumcraft.player;
 import ca.xef5000.quantumcraft.QuantumCraft;
 import ca.xef5000.quantumcraft.region.QuantumRegion;
 import ca.xef5000.quantumcraft.region.RegionState;
+import ca.xef5000.quantumcraft.storage.PlayerStateStorage;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Manages which quantum states each player is viewing.
@@ -15,15 +17,18 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class PlayerStateManager {
     private final QuantumCraft plugin;
-    
+
     // Maps player UUID -> region ID -> state name
     private final Map<UUID, Map<String, String>> playerStates;
-    
+
     // Maps player UUID -> set of region IDs where player is in "reality" mode
     private final Map<UUID, Set<String>> realityMode;
-    
+
     // Cache for quick lookups
     private final Map<UUID, Map<String, RegionState>> stateCache;
+
+    // Database storage for player states
+    private final PlayerStateStorage stateStorage;
 
     /**
      * Creates a new PlayerStateManager.
@@ -35,6 +40,93 @@ public class PlayerStateManager {
         this.playerStates = new ConcurrentHashMap<>();
         this.realityMode = new ConcurrentHashMap<>();
         this.stateCache = new ConcurrentHashMap<>();
+        this.stateStorage = new PlayerStateStorage(plugin, plugin.getLogger());
+    }
+
+    /**
+     * Initializes the player state manager and loads player states from the database.
+     */
+    public void initialize() {
+        // Initialize the database
+        if (!stateStorage.initialize()) {
+            plugin.getLogger().severe("Failed to initialize player state storage. Player states will not persist!");
+            return;
+        }
+
+        // Load player states from database
+        loadPlayerStates();
+    }
+
+    /**
+     * Loads all player states from the database.
+     */
+    private void loadPlayerStates() {
+        plugin.getLogger().info("Loading player states from database...");
+
+        // Load player states
+        stateStorage.loadAllPlayerStates().thenAccept(states -> {
+            playerStates.clear();
+            playerStates.putAll(states);
+            plugin.getLogger().info("Loaded " + states.size() + " player state records from database");
+        }).exceptionally(e -> {
+            plugin.getLogger().severe("Failed to load player states: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        });
+
+        // Load reality modes
+        stateStorage.loadAllPlayerRealityModes().thenAccept(modes -> {
+            realityMode.clear();
+            realityMode.putAll(modes);
+            plugin.getLogger().info("Loaded " + modes.size() + " player reality mode records from database");
+        }).exceptionally(e -> {
+            plugin.getLogger().severe("Failed to load player reality modes: " + e.getMessage());
+            e.printStackTrace();
+            return null;
+        });
+    }
+
+    /**
+     * Saves all player states to the database.
+     */
+    public void saveAllPlayerStates() {
+        plugin.getLogger().info("Saving player states to database...");
+
+        // Save player states
+        for (Map.Entry<UUID, Map<String, String>> entry : playerStates.entrySet()) {
+            UUID playerUuid = entry.getKey();
+            Map<String, String> states = entry.getValue();
+
+            for (Map.Entry<String, String> stateEntry : states.entrySet()) {
+                String regionId = stateEntry.getKey();
+                String stateName = stateEntry.getValue();
+
+                stateStorage.savePlayerState(playerUuid, regionId, stateName);
+            }
+        }
+
+        // Save reality modes
+        for (Map.Entry<UUID, Set<String>> entry : realityMode.entrySet()) {
+            UUID playerUuid = entry.getKey();
+            Set<String> regions = entry.getValue();
+
+            for (String regionId : regions) {
+                stateStorage.savePlayerReality(playerUuid, regionId);
+            }
+        }
+
+        plugin.getLogger().info("Player states saved to database");
+    }
+
+    /**
+     * Shuts down the player state manager and saves all player states.
+     */
+    public void shutdown() {
+        // Save all player states
+        saveAllPlayerStates();
+
+        // Shutdown the storage
+        stateStorage.shutdown();
     }
 
     /**
@@ -56,10 +148,10 @@ public class PlayerStateManager {
 
         // Update player state mapping
         playerStates.computeIfAbsent(playerId, k -> new ConcurrentHashMap<>()).put(regionId, stateName);
-        
+
         // Update cache
         stateCache.computeIfAbsent(playerId, k -> new ConcurrentHashMap<>()).put(regionId, state);
-        
+
         // Remove from reality mode if they were in it
         Set<String> realityRegions = realityMode.get(playerId);
         if (realityRegions != null) {
@@ -68,7 +160,10 @@ public class PlayerStateManager {
 
         // Update the player's view
         updatePlayerView(player, region);
-        
+
+        // Save to database
+        stateStorage.savePlayerState(playerId, regionId, stateName);
+
         plugin.getLogger().info("Player " + player.getName() + " switched to state '" + stateName + "' in region '" + region.getName() + "'");
     }
 
@@ -100,12 +195,12 @@ public class PlayerStateManager {
         if (states != null && states.containsKey(regionId)) {
             String stateName = states.get(regionId);
             RegionState state = region.getState(stateName);
-            
+
             // Update cache
             if (state != null) {
                 stateCache.computeIfAbsent(playerId, k -> new ConcurrentHashMap<>()).put(regionId, state);
             }
-            
+
             return state;
         }
 
@@ -114,7 +209,7 @@ public class PlayerStateManager {
         if (defaultState != null) {
             stateCache.computeIfAbsent(playerId, k -> new ConcurrentHashMap<>()).put(regionId, defaultState);
         }
-        
+
         return defaultState;
     }
 
@@ -131,7 +226,7 @@ public class PlayerStateManager {
 
         // Add to reality mode
         realityMode.computeIfAbsent(playerId, k -> ConcurrentHashMap.newKeySet()).add(regionId);
-        
+
         // Remove from state cache
         Map<String, RegionState> playerCache = stateCache.get(playerId);
         if (playerCache != null) {
@@ -140,7 +235,10 @@ public class PlayerStateManager {
 
         // Update the player's view to show reality
         updatePlayerView(player, region);
-        
+
+        // Save to database
+        stateStorage.savePlayerReality(playerId, regionId);
+
         plugin.getLogger().info("Player " + player.getName() + " entered reality mode for region '" + region.getName() + "'");
     }
 
@@ -152,7 +250,7 @@ public class PlayerStateManager {
     public void clearPlayerReality(Player player) {
         UUID playerId = player.getUniqueId();
         Set<String> realityRegions = realityMode.get(playerId);
-        
+
         if (realityRegions != null && !realityRegions.isEmpty()) {
             // Update view for all regions they were in reality mode for
             for (String regionId : realityRegions) {
@@ -161,7 +259,7 @@ public class PlayerStateManager {
                     updatePlayerView(player, region);
                 }
             }
-            
+
             realityRegions.clear();
             plugin.getLogger().info("Player " + player.getName() + " exited reality mode for all regions");
         }
@@ -176,7 +274,7 @@ public class PlayerStateManager {
     public void clearPlayerReality(Player player, QuantumRegion region) {
         UUID playerId = player.getUniqueId();
         String regionId = region.getId();
-        
+
         Set<String> realityRegions = realityMode.get(playerId);
         if (realityRegions != null && realityRegions.remove(regionId)) {
             updatePlayerView(player, region);
@@ -194,7 +292,7 @@ public class PlayerStateManager {
     public boolean isPlayerInReality(Player player, QuantumRegion region) {
         UUID playerId = player.getUniqueId();
         String regionId = region.getId();
-        
+
         Set<String> realityRegions = realityMode.get(playerId);
         return realityRegions != null && realityRegions.contains(regionId);
     }
@@ -294,6 +392,11 @@ public class PlayerStateManager {
         playerStates.remove(playerId);
         realityMode.remove(playerId);
         stateCache.remove(playerId);
+
+        // Note: We don't remove from database as we want to persist player states
+        // across sessions. If you want to remove player data from the database,
+        // uncomment the following line:
+        // stateStorage.removePlayerData(playerId);
     }
 
     /**

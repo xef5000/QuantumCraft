@@ -4,21 +4,34 @@
 storage:
   # Directory to store region data (relative to plugin folder)
   data-directory: "regions"
-  
+
   # Enable compression for region data
   enable-compression: true
-  
+
   # Auto-save interval in minutes (0 to disable)
   auto-save-interval: 5
+
+  # Database settings for player state persistence
+  database:
+    # Use MySQL instead of SQLite
+    use-mysql: false
+
+    # MySQL connection settings (only used if use-mysql is true)
+    mysql:
+      host: "localhost"
+      port: 3306
+      database: "quantumcraft"
+      username: "root"
+      password: ""
 
 # Performance settings
 performance:
   # Maximum number of chunks to process per tick when updating player views
   max-chunks-per-tick: 10
-  
+
   # Maximum number of blocks to send per packet
   max-blocks-per-packet: 1000
-  
+
   # Enable async processing for large regions
   enable-async-processing: true
 
@@ -26,10 +39,10 @@ performance:
 debug:
   # Enable debug logging
   enable-debug: false
-  
+
   # Log packet sending
   log-packets: false
-  
+
   # Log region operations
   log-regions: false
 
@@ -37,6 +50,6 @@ debug:
 defaults:
   # Default version name for new regions
   default-version-name: "default"
-  
+
   # Automatically capture state when creating regions
   auto-capture-on-create: true
