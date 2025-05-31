@@ -144,9 +144,18 @@ public class PacketInterceptor {
                 try {
                     Player player = event.getPlayer();
 
-                    // Get chunk position from packet
-                    int chunkX = event.getPacket().getIntegers().read(0);
-                    int chunkZ = event.getPacket().getIntegers().read(1);
+                    // Get chunk section position from packet
+                    // The MULTI_BLOCK_CHANGE packet contains a section position (chunk coordinates)
+                    // and a list of block changes relative to that section.
+                    if (event.getPacket().getSectionPositions().size() == 0) { // Ensure using .size() == 0
+                        if (plugin.getConfig().getBoolean("debug.enable-debug", false)) {
+                            logger.warning("MultiBlockChange packet for " + player.getName() + " is missing section position data. Packet details: " + event.getPacket().toString());
+                        }
+                        return; // Cannot process if section position is missing
+                    }
+                    BlockPosition sectionPos = event.getPacket().getSectionPositions().read(0);
+                    int chunkX = sectionPos.getX(); // This is the X coordinate of the chunk.
+                    int chunkZ = sectionPos.getZ(); // This is the Z coordinate of the chunk.
 
                     // Check if this chunk intersects with any quantum regions
                     boolean hasQuantumRegions = false;
