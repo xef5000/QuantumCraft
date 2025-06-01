@@ -61,8 +61,6 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
                 return handleSwitch(sender, args);
             case "reality":
                 return handleReality(sender, args);
-            case "capture":
-                return handleCapture(sender, args);
             case "stick":
                 return handleStick(sender);
             case "stats":
@@ -143,7 +141,7 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
         try {
             QuantumRegion region = plugin.getRegionManager().createRegion(name, player.getWorld(), min, max);
             sender.sendMessage(ChatColor.GREEN + "Created quantum region: " + name);
-            sender.sendMessage(ChatColor.YELLOW + "Use /qc capture " + name + " default to capture the current state");
+            sender.sendMessage(ChatColor.YELLOW + "Use /qc state capture " + name + " default to capture the current state");
             
             return true;
         } catch (Exception e) {
@@ -242,7 +240,7 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
      */
     private boolean handleState(CommandSender sender, String[] args) {
         if (args.length < 3) {
-            sender.sendMessage(ChatColor.RED + "Usage: /qc state <create|delete> <region> <state>");
+            sender.sendMessage(ChatColor.RED + "Usage: /qc state <create|delete|capture> <region> <state>");
             return true;
         }
 
@@ -265,7 +263,7 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
             try {
                 RegionState state = region.createState(stateName);
                 sender.sendMessage(ChatColor.GREEN + "Created state: " + stateName);
-                sender.sendMessage(ChatColor.YELLOW + "Use /qc capture " + regionName + " " + stateName + " to capture blocks");
+                sender.sendMessage(ChatColor.YELLOW + "Use /qc state capture " + regionName + " " + stateName + " to capture blocks");
                 return true;
             } catch (IllegalArgumentException e) {
                 sender.sendMessage(ChatColor.RED + e.getMessage());
@@ -284,6 +282,31 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage(ChatColor.GREEN + "Deleted state: " + stateName);
             } else {
                 sender.sendMessage(ChatColor.RED + "Failed to delete state: " + stateName);
+            }
+            return true;
+        } else if (action.equals("capture")) {
+            if (args.length < 4) {
+                sender.sendMessage(ChatColor.RED + "Usage: /qc state capture <region> <state>");
+                return true;
+            }
+
+            String stateName = args[3];
+            RegionState state = region.getState(stateName);
+            if (state == null) {
+                sender.sendMessage(ChatColor.RED + "State not found: " + stateName);
+                return true;
+            }
+
+            try {
+                sender.sendMessage(ChatColor.YELLOW + "Capturing current blocks for state: " + stateName);
+                state.captureCurrentState();
+                sender.sendMessage(ChatColor.GREEN + "Captured " + state.getBlockCount() + " blocks (" +
+                    CompressionUtil.formatBytes(state.getMemoryUsage()) + ")");
+
+                // Update all players viewing this region
+                plugin.getPlayerStateManager().updateAllPlayersView(region);
+            } catch (Exception e) {
+                sender.sendMessage(ChatColor.RED + "Failed to capture state: " + e.getMessage());
             }
             return true;
         } else {
@@ -308,9 +331,9 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(ChatColor.GREEN + "/qc info <region> - Show region information");
         sender.sendMessage(ChatColor.GREEN + "/qc state create <region> <state> - Create a new state");
         sender.sendMessage(ChatColor.GREEN + "/qc state delete <region> <state> - Delete a state");
+        sender.sendMessage(ChatColor.GREEN + "/qc state capture <region> <state> - Capture current blocks");
         sender.sendMessage(ChatColor.GREEN + "/qc switch <region> <state> - Switch to a state");
         sender.sendMessage(ChatColor.GREEN + "/qc reality [region] - Enter reality mode");
-        sender.sendMessage(ChatColor.GREEN + "/qc capture <region> <state> - Capture current blocks");
         sender.sendMessage(ChatColor.GREEN + "/qc stick - Get the selection tool");
         sender.sendMessage(ChatColor.GREEN + "/qc stats - Show plugin statistics");
         sender.sendMessage(ChatColor.GREEN + "/qc refresh [region] - Refresh quantum regions");
@@ -386,51 +409,6 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
             plugin.getPlayerStateManager().clearPlayerReality(player);
             sender.sendMessage(ChatColor.GREEN + "Entered reality mode for all regions.");
             sender.sendMessage(ChatColor.YELLOW + "You can now modify blocks normally. Use /qc switch to return to states.");
-        }
-
-        return true;
-    }
-
-    /**
-     * Handles the 'capture' subcommand.
-     */
-    private boolean handleCapture(CommandSender sender, String[] args) {
-        if (!(sender instanceof Player)) {
-            sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
-            return true;
-        }
-
-        if (args.length < 3) {
-            sender.sendMessage(ChatColor.RED + "Usage: /qc capture <region> <state>");
-            return true;
-        }
-
-        String regionName = args[1];
-        String stateName = args[2];
-
-        QuantumRegion region = plugin.getRegionManager().getRegionByName(regionName);
-        if (region == null) {
-            sender.sendMessage(ChatColor.RED + "Region not found: " + regionName);
-            return true;
-        }
-
-        RegionState state = region.getState(stateName);
-        if (state == null) {
-            sender.sendMessage(ChatColor.RED + "State not found: " + stateName);
-            return true;
-        }
-
-        try {
-            sender.sendMessage(ChatColor.YELLOW + "Capturing current state... This may take a moment for large regions.");
-            state.captureCurrentState();
-            sender.sendMessage(ChatColor.GREEN + "Captured current blocks for state: " + stateName);
-            sender.sendMessage(ChatColor.GREEN + "Captured " + state.getBlockCount() + " blocks (" +
-                CompressionUtil.formatBytes(state.getMemoryUsage()) + ")");
-
-            // Update all players viewing this region
-            plugin.getPlayerStateManager().updateAllPlayersView(region);
-        } catch (Exception e) {
-            sender.sendMessage(ChatColor.RED + "Failed to capture state: " + e.getMessage());
         }
 
         return true;
@@ -543,7 +521,7 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return Arrays.asList("create", "delete", "list", "info", "state", "switch", "reality", "capture", "stick", "stats", "refresh", "reload")
+            return Arrays.asList("create", "delete", "list", "info", "state", "switch", "reality", "stick", "stats", "refresh", "reload")
                     .stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
@@ -558,7 +536,7 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
                         .filter(s -> s.toLowerCase().startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
             } else if (subCommand.equals("state")) {
-                return Arrays.asList("create", "delete")
+                return Arrays.asList("create", "delete", "capture")
                         .stream()
                         .filter(s -> s.startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
@@ -574,10 +552,16 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
             String regionName = args[1];
             QuantumRegion region = plugin.getRegionManager().getRegionByName(regionName);
 
-            if (region != null && (subCommand.equals("switch") || subCommand.equals("capture") ||
-                                  (subCommand.equals("state") && args.length == 3))) {
+            if (region != null && (subCommand.equals("switch"))) {
                 return region.getStateNames()
                         .stream()
+                        .filter(s -> s.toLowerCase().startsWith(args[2].toLowerCase()))
+                        .collect(Collectors.toList());
+            }
+            if (subCommand.equals("state")) {
+                return plugin.getRegionManager().getAllRegions()
+                        .stream()
+                        .map(QuantumRegion::getName)
                         .filter(s -> s.toLowerCase().startsWith(args[2].toLowerCase()))
                         .collect(Collectors.toList());
             }
