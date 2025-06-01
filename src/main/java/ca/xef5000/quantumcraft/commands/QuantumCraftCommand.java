@@ -16,6 +16,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -69,6 +70,8 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
                 return handleRefresh(sender, args);
             case "reload":
                 return handleReload(sender, args);
+            case "setregionreality":
+                return handleSetRegionReality(sender, args);
             default:
                 sender.sendMessage(ChatColor.RED + "Unknown subcommand: " + subCommand);
                 sendHelp(sender);
@@ -334,6 +337,7 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(ChatColor.GREEN + "/qc state capture <region> <state> - Capture current blocks");
         sender.sendMessage(ChatColor.GREEN + "/qc switch <region> <state> - Switch to a state");
         sender.sendMessage(ChatColor.GREEN + "/qc reality [region] - Enter reality mode");
+        sender.sendMessage(ChatColor.GREEN + "/qc setregionreality <region> <state> - Sets the default 'reality' state for a region");
         sender.sendMessage(ChatColor.GREEN + "/qc stick - Get the selection tool");
         sender.sendMessage(ChatColor.GREEN + "/qc stats - Show plugin statistics");
         sender.sendMessage(ChatColor.GREEN + "/qc refresh [region] - Refresh quantum regions");
@@ -518,10 +522,52 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
+    private boolean handleSetRegionReality(CommandSender sender, String[] args) {
+        if (args.length < 3) {
+            sender.sendMessage(ChatColor.RED + "Usage: /qc setregionreality <regionName> <stateName>");
+            return true;
+        }
+
+        String regionName = args[1];
+        String stateName = args[2];
+
+        QuantumRegion region = plugin.getRegionManager().getRegionByName(regionName);
+        if (region == null) {
+            sender.sendMessage(ChatColor.RED + "Region '" + regionName + "' not found.");
+            return true;
+        }
+
+        RegionState state = region.getState(stateName);
+        if (state == null) {
+            sender.sendMessage(ChatColor.RED + "State '" + stateName + "' not found in region '" + regionName + "'.");
+            return true;
+        }
+
+        region.setDefaultState(stateName);
+
+        // Final objects for lambda
+        final QuantumRegion finalRegion = region;
+        final RegionState finalState = state;
+
+        plugin.getRegionManager().getStorage().saveRegion(region)
+            .thenAccept(v -> {
+                sender.sendMessage(ChatColor.GREEN + "Region '" + finalRegion.getName() + "' default state reference updated to '" + stateName + "'.");
+                sender.sendMessage(ChatColor.YELLOW + "Applying state '" + stateName + "' to the physical world... This may take a moment.");
+                plugin.getRegionManager().applyStateToPhysicalWorld(finalRegion, finalState);
+            })
+            .exceptionally(ex -> {
+                plugin.getLogger().severe("Failed to save region reality for region " + finalRegion.getName() + ": " + ex.getMessage());
+                sender.sendMessage(ChatColor.RED + "Failed to save region reality: " + ex.getMessage());
+                return null;
+            });
+
+        return true;
+    }
+
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return Arrays.asList("create", "delete", "list", "info", "state", "switch", "reality", "stick", "stats", "refresh", "reload")
+            return Arrays.asList("create", "delete", "list", "info", "state", "switch", "reality", "stick", "stats", "refresh", "reload", "setregionreality")
                     .stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
@@ -540,6 +586,12 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
                         .stream()
                         .filter(s -> s.startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
+            } else if (subCommand.equals("setregionreality")) {
+                return plugin.getRegionManager().getAllRegions()
+                        .stream()
+                        .map(QuantumRegion::getName)
+                        .filter(s -> s.toLowerCase().startsWith(args[1].toLowerCase()))
+                        .collect(Collectors.toList());
             } else {
                 return plugin.getRegionManager().getAllRegions()
                         .stream()
@@ -552,21 +604,31 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
             String regionName = args[1];
             QuantumRegion region = plugin.getRegionManager().getRegionByName(regionName);
 
-            if (region != null && (subCommand.equals("switch"))) {
+            if (region != null && subCommand.equals("switch")) {
                 return region.getStateNames()
                         .stream()
                         .filter(s -> s.toLowerCase().startsWith(args[2].toLowerCase()))
                         .collect(Collectors.toList());
             }
             if (subCommand.equals("state")) {
-                return plugin.getRegionManager().getAllRegions()
+                // This case seems to be for /qc state <action> <region_name_for_action>
+                // For /qc state create <region_to_create_state_in> <new_state_name>
+                // It should suggest region names for args[2] if args[1] is create/delete/capture
+                 return plugin.getRegionManager().getAllRegions()
                         .stream()
                         .map(QuantumRegion::getName)
                         .filter(s -> s.toLowerCase().startsWith(args[2].toLowerCase()))
                         .collect(Collectors.toList());
             }
+            if (region != null && subCommand.equals("setregionreality")) {
+                return region.getStateNames()
+                        .stream()
+                        .filter(s -> s.toLowerCase().startsWith(args[2].toLowerCase()))
+                        .collect(Collectors.toList());
+            }
         } else if (args.length == 4 && args[0].equalsIgnoreCase("state")) {
-            String regionName = args[2];
+            // This is for /qc state <action> <region> <state_name_for_action>
+            String regionName = args[2]; // region name is args[2] here
             QuantumRegion region = plugin.getRegionManager().getRegionByName(regionName);
 
             if (region != null) {
