@@ -3,8 +3,13 @@ package ca.xef5000.quantumcraft.region;
 import ca.xef5000.quantumcraft.QuantumCraft;
 import ca.xef5000.quantumcraft.storage.StateStorage;
 import ca.xef5000.quantumcraft.util.RegionBounds;
+import ca.xef5000.quantumcraft.util.RegionBounds;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
+import org.bukkit.Material;
 import org.bukkit.World;
+import org.bukkit.block.Block;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.util.Vector;
 
@@ -356,4 +361,47 @@ public class RegionManager {
     // Getters
     public StateStorage getStorage() { return storage; }
     public int getRegionCount() { return regions.size(); }
+
+    /**
+     * Applies a given state to the physical world, modifying the actual blocks.
+     * This operation is performed asynchronously with block setting on the main thread.
+     *
+     * @param region The QuantumRegion to affect.
+     * @param stateToApply The RegionState to apply to the physical world.
+     */
+    public void applyStateToPhysicalWorld(QuantumRegion region, RegionState stateToApply) {
+        plugin.getLogger().info("Applying state '" + stateToApply.getName() + "' to physical world for region '" + region.getName() + "' (ID: " + region.getId() + ").");
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                RegionBounds bounds = region.getBounds();
+                World world = bounds.getWorld();
+
+                for (int x = bounds.getMinX(); x <= bounds.getMaxX(); x++) {
+                    for (int y = bounds.getMinY(); y <= bounds.getMaxY(); y++) {
+                        for (int z = bounds.getMinZ(); z <= bounds.getMaxZ(); z++) {
+                            BlockData retrievedBlockData = stateToApply.getBlockData(x, y, z);
+
+                            final int currentX = x;
+                            final int currentY = y;
+                            final int currentZ = z;
+
+                            Bukkit.getScheduler().runTask(plugin, () -> {
+                                Block block = world.getBlockAt(currentX, currentY, currentZ);
+                                if (retrievedBlockData == null) {
+                                    block.setType(Material.AIR, false);
+                                } else {
+                                    block.setBlockData(retrievedBlockData, false);
+                                }
+                            });
+                        }
+                    }
+                }
+                plugin.getLogger().info("Successfully applied state '" + stateToApply.getName() + "' to physical world for region '" + region.getName() + "'.");
+            } catch (Exception e) {
+                plugin.getLogger().severe("Error applying state '" + stateToApply.getName() + "' to physical world for region '" + region.getName() + "': " + e.getMessage());
+                e.printStackTrace();
+            }
+        });
+    }
 }
