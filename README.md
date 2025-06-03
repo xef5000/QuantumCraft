@@ -25,7 +25,7 @@ QuantumCraft is a Minecraft plugin that implements quantum superposition concept
 
 - `/qc state create <region> <state>` - Create a new state for a region
 - `/qc state delete <region> <state>` - Delete a state from a region
-- `/qc capture <region> <state>` - Capture the current blocks into a state
+- `/qc state capture <region> <state>` - Capture the current blocks into a state
 - `/qc switch <region> <state>` - Switch to viewing a specific state
 
 ### Reality Mode
@@ -38,6 +38,7 @@ QuantumCraft is a Minecraft plugin that implements quantum superposition concept
 - `/qc stats` - Show plugin statistics and memory usage
 - `/qc refresh [region]` - Manually refresh quantum regions (useful for testing)
 - `/qc reload` - Reload all regions from disk (useful after server restart issues)
+- `/qc reloadconfig` - Reload regions.yml configuration (useful for testing)
 
 ## How It Works
 
