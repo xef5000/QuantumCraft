@@ -70,6 +70,8 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
                 return handleRefresh(sender, args);
             case "reload":
                 return handleReload(sender, args);
+            case "reloadconfig":
+                return handleReloadConfig(sender, args);
             case "setregionreality":
                 return handleSetRegionReality(sender, args);
             default:
@@ -342,6 +344,7 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(ChatColor.GREEN + "/qc stats - Show plugin statistics");
         sender.sendMessage(ChatColor.GREEN + "/qc refresh [region] - Refresh quantum regions");
         sender.sendMessage(ChatColor.GREEN + "/qc reload - Reload regions from disk");
+        sender.sendMessage(ChatColor.GREEN + "/qc reloadconfig - Reload regions.yml configuration");
     }
 
     /**
@@ -522,6 +525,35 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
+    /**
+     * Handles the 'reloadconfig' subcommand.
+     */
+    private boolean handleReloadConfig(CommandSender sender, String[] args) {
+        sender.sendMessage(ChatColor.YELLOW + "Reloading regions.yml configuration...");
+
+        try {
+            plugin.reloadRegionConfigurations();
+            sender.sendMessage(ChatColor.GREEN + "Successfully reloaded regions.yml configuration.");
+            sender.sendMessage(ChatColor.GREEN + "Automatic state management restarted with new settings.");
+
+            // Force check all online players with new config
+            for (org.bukkit.entity.Player player : plugin.getServer().getOnlinePlayers()) {
+                if (plugin.getAutoStateManager() != null) {
+                    plugin.getAutoStateManager().forceCheckPlayer(player);
+                }
+            }
+
+            sender.sendMessage(ChatColor.GREEN + "Applied new configuration to all online players.");
+
+        } catch (Exception e) {
+            sender.sendMessage(ChatColor.RED + "Failed to reload configuration: " + e.getMessage());
+            plugin.getLogger().severe("Failed to reload regions.yml: " + e.getMessage());
+            e.printStackTrace();
+        }
+
+        return true;
+    }
+
     private boolean handleSetRegionReality(CommandSender sender, String[] args) {
         if (args.length < 3) {
             sender.sendMessage(ChatColor.RED + "Usage: /qc setregionreality <regionName> <stateName>");
@@ -567,7 +599,7 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return Arrays.asList("create", "delete", "list", "info", "state", "switch", "reality", "stick", "stats", "refresh", "reload", "setregionreality")
+            return Arrays.asList("create", "delete", "list", "info", "state", "switch", "reality", "stick", "stats", "refresh", "reload", "setregionreality", "reloadconfig")
                     .stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());

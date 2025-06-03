@@ -5,6 +5,7 @@ api-version: '1.20'
 description: 'A plugin for creating and managing the quantum superposition of regions in Minecraft.'
 authors: [xef5000]
 depend: [ProtocolLib]
+softdepend: [Vault, PlaceholderAPI, Quests]
 
 commands:
   quantumcraft:

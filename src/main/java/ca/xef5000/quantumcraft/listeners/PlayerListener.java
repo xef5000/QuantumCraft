@@ -112,7 +112,12 @@ public class PlayerListener implements Listener {
 
         // Delay the region refresh to ensure the player is fully loaded
         plugin.getServer().getScheduler().runTaskLater(plugin, () -> {
-            // Refresh all quantum regions for the player
+            // Force immediate state check for the joining player
+            if (plugin.getAutoStateManager() != null) {
+                plugin.getAutoStateManager().forceCheckPlayer(player);
+            }
+
+            // Also refresh quantum regions for the player (fallback)
             plugin.getPlayerStateManager().refreshAllRegionsForPlayer(player);
 
             if (plugin.getConfig().getBoolean("debug.log-regions", false)) {
@@ -130,7 +135,12 @@ public class PlayerListener implements Listener {
         
         // Clean up player data
         plugin.getPlayerStateManager().cleanupPlayer(player);
-        
+
+        // Clean up auto state manager data
+        if (plugin.getAutoStateManager() != null) {
+            plugin.getAutoStateManager().cleanupPlayer(player);
+        }
+
         // Clean up selection data
         QuantumCraftCommand commandHandler = getCommandHandler();
         UUID playerId = player.getUniqueId();

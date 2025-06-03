@@ -1,0 +1,310 @@
+# QuantumCraft Regions Configuration
+# This file defines quantum regions and their various states that players can experience
+# The plugin automatically manages which state each player sees based on conditions
+
+# Global settings for all regions
+global_settings:
+  # Default behavior when multiple states are unlocked
+  multi_state_resolution: "highest_priority"  # Options: highest_priority, random, cycle_time
+  
+  # How often to check state conditions (in ticks, 20 = 1 second)
+  condition_check_interval: 100
+  
+  # Whether to show debug messages for state changes
+  debug_state_changes: false
+  
+  # Default messages (can be overridden per region)
+  default_entry_message: "&7You have entered a quantum region..."
+  default_exit_message: "&7You have left the quantum region."
+  
+  # Performance settings
+  max_regions_per_check: 5  # Limit regions checked per tick for performance
+  
+  # Integration settings
+  quest_plugin: "Quests"  # Plugin name for quest integration
+  economy_plugin: "Vault"  # Plugin name for economy integration
+
+# Main regions configuration
+regions:
+  
+  # Example Region 1: A city plaza that changes based on time and player progress
+  city_center_plaza:
+    name: "City Center Plaza"
+    world: "world"
+    min_point: {x: 100, y: 64, z: 200}
+    max_point: {x: 150, y: 100, z: 250}
+    priority: 10
+    default_state_id: "peaceful_day"
+    entry_message: "&6Welcome to the City Center Plaza!"
+    exit_message: "&7You leave the bustling plaza behind."
+    
+    # Region-specific settings
+    settings:
+      # How often to re-evaluate states for players in this region (ticks)
+      state_refresh_interval: 200
+      # Whether to announce state changes to players
+      announce_state_changes: true
+      # Transition effects
+      transition_effect: "fade_black"  # Options: none, fade_black, fade_white, particles
+      transition_duration: 20  # ticks
+    
+    states:
+      peaceful_day:
+        name: "Peaceful Day"
+        description: "The plaza bustles with merchants and citizens during peaceful times"
+        icon: "minecraft:sunflower"
+        priority: 1
+        unlock_conditions: []  # Always available as default
+        ambient_effects:
+          sounds:
+            - sound: "minecraft:ambient.cave"
+              volume: 0.3
+              pitch: 1.0
+          particles:
+            - type: "minecraft:happy_villager"
+              count: 5
+              interval: 100
+      
+      festival_active:
+        name: "Grand Festival"
+        description: "The plaza transforms during the annual harvest festival"
+        icon: "minecraft:firework_rocket"
+        priority: 5
+        unlock_conditions:
+          - type: "time_range"
+            start_time: "18:00"
+            end_time: "06:00"
+            real_time: false  # Use in-game time
+          - type: "permission"
+            value: "quantumcraft.festival.access"
+          - type: "advancement_achieved"
+            value: "minecraft:husbandry/plant_seed"
+        on_enter_commands:
+          - "title %player% title &6Festival Time!"
+          - "playsound minecraft:ui.toast.challenge_complete master %player%"
+        ambient_effects:
+          sounds:
+            - sound: "minecraft:music.creative"
+              volume: 0.5
+              pitch: 1.0
+          particles:
+            - type: "minecraft:firework"
+              count: 10
+              interval: 60
+      
+      wartime_ruins:
+        name: "War-Torn Ruins"
+        description: "The plaza lies in ruins during times of conflict"
+        icon: "minecraft:tnt"
+        priority: 8
+        unlock_conditions:
+          - type: "quest_completed"
+            value: "main_story_war_begins"
+            quest_plugin: "Quests"
+          - type: "player_statistic"
+            statistic: "minecraft:custom:minecraft:mob_kills"
+            value: 100
+            comparison: "greater_than"
+        on_enter_commands:
+          - "effect give %player% minecraft:slowness 10 0"
+          - "title %player% subtitle &cDanger lurks in these ruins..."
+        ambient_effects:
+          sounds:
+            - sound: "minecraft:ambient.nether_wastes.mood"
+              volume: 0.4
+              pitch: 0.8
+          particles:
+            - type: "minecraft:smoke"
+              count: 3
+              interval: 40
+      
+      mystical_night:
+        name: "Mystical Moonlight"
+        description: "Ancient magic awakens in the plaza under the full moon"
+        icon: "minecraft:enchanted_book"
+        priority: 6
+        unlock_conditions:
+          - type: "game_time"
+            min_ticks: 13000
+            max_ticks: 23000
+          - type: "item_possessed"
+            material: "minecraft:ender_eye"
+            amount: 1
+            name_contains: "Mystic"
+          - type: "placeholder_api"
+            placeholder: "%player_level%"
+            value: "20"
+            comparison: "greater_than_or_equal"
+        on_enter_commands:
+          - "particle minecraft:portal ~ ~1 ~ 2 2 2 0.1 50"
+          - "playsound minecraft:block.portal.ambient master %player%"
+        ambient_effects:
+          sounds:
+            - sound: "minecraft:ambient.soul_sand_valley.mood"
+              volume: 0.3
+              pitch: 1.2
+          particles:
+            - type: "minecraft:enchant"
+              count: 8
+              interval: 80
+
+  # Example Region 2: Ancient temple with progression-based states
+  ancient_temple:
+    name: "Temple of Echoing Whispers"
+    world: "world"
+    min_point: {x: -50, y: 60, z: -100}
+    max_point: {x: 50, y: 120, z: 0}
+    priority: 15
+    default_state_id: "REALITY"  # Show actual server blocks by default
+    entry_message: "&5Ancient energies stir as you approach..."
+    exit_message: "&7The whispers fade as you leave the sacred grounds."
+
+    settings:
+      state_refresh_interval: 60  # Check more frequently for this important region
+      announce_state_changes: true
+      transition_effect: "fade_white"
+      transition_duration: 40
+      # Custom setting for this region
+      require_line_of_sight: true  # Only show state if player can see the temple
+
+    states:
+      dormant_temple:
+        name: "Dormant Temple"
+        description: "The temple sleeps, waiting for the worthy to awaken it"
+        icon: "minecraft:stone_bricks"
+        priority: 2
+        unlock_conditions:
+          - type: "advancement_achieved"
+            value: "minecraft:story/mine_diamond"
+        on_enter_commands:
+          - "title %player% subtitle &7The temple acknowledges your presence..."
+        ambient_effects:
+          sounds:
+            - sound: "minecraft:ambient.cave"
+              volume: 0.2
+              pitch: 0.9
+
+      awakening_temple:
+        name: "Awakening Temple"
+        description: "Ancient mechanisms begin to stir and activate"
+        icon: "minecraft:redstone_lamp"
+        priority: 5
+        unlock_conditions:
+          - type: "quest_completed"
+            value: "temple_key_quest"
+          - type: "item_possessed"
+            material: "minecraft:golden_apple"
+            amount: 3
+          - type: "group_condition"
+            logic: "OR"
+            conditions:
+              - type: "permission"
+                value: "quantumcraft.temple.awakener"
+              - type: "economy_balance"
+                amount: 10000
+                comparison: "greater_than_or_equal"
+        on_enter_commands:
+          - "playsound minecraft:block.beacon.activate master %player%"
+          - "effect give %player% minecraft:night_vision 300 0"
+        on_exit_commands:
+          - "effect clear %player% minecraft:night_vision"
+        ambient_effects:
+          sounds:
+            - sound: "minecraft:block.beacon.ambient"
+              volume: 0.4
+              pitch: 1.0
+          particles:
+            - type: "minecraft:end_rod"
+              count: 15
+              interval: 100
+
+      fully_awakened:
+        name: "Temple of Power"
+        description: "The temple reveals its true magnificent form"
+        icon: "minecraft:beacon"
+        priority: 10
+        unlock_conditions:
+          - type: "all_conditions"  # Must meet ALL of these
+            conditions:
+              - type: "quest_completed"
+                value: "temple_master_quest"
+              - type: "player_statistic"
+                statistic: "minecraft:custom:minecraft:play_time"
+                value: 720000  # 10 hours
+                comparison: "greater_than"
+              - type: "advancement_achieved"
+                value: "minecraft:end/kill_dragon"
+              - type: "item_possessed"
+                material: "minecraft:nether_star"
+                amount: 1
+        on_enter_commands:
+          - "title %player% title &6&lTEMPLE MASTER"
+          - "title %player% subtitle &eThe temple bows to your power"
+          - "effect give %player% minecraft:hero_of_the_village 600 2"
+          - "playsound minecraft:ui.toast.challenge_complete master %player%"
+        ambient_effects:
+          sounds:
+            - sound: "minecraft:music.end"
+              volume: 0.6
+              pitch: 1.0
+          particles:
+            - type: "minecraft:dragon_breath"
+              count: 20
+              interval: 60
+
+      corrupted_temple:
+        name: "Corrupted Sanctum"
+        description: "Dark forces have twisted the temple's sacred energy"
+        icon: "minecraft:wither_skeleton_skull"
+        priority: 7
+        unlock_conditions:
+          - type: "time_condition"
+            real_time: true
+            start_time: "23:00"
+            end_time: "05:00"
+          - type: "weather_condition"
+            weather: "STORM"
+          - type: "item_possessed"
+            material: "minecraft:totem_of_undying"
+            amount: 1
+            enchantments:
+              - "minecraft:curse_of_vanishing"
+        on_enter_commands:
+          - "effect give %player% minecraft:wither 5 0"
+          - "title %player% subtitle &4The corruption seeps into your soul..."
+        ambient_effects:
+          sounds:
+            - sound: "minecraft:ambient.soul_sand_valley.loop"
+              volume: 0.5
+              pitch: 0.7
+          particles:
+            - type: "minecraft:soul"
+              count: 12
+              interval: 40
+
+  # Example Region 3: Overlapping region with different priority
+  temple_courtyard:
+    name: "Temple Courtyard"
+    world: "world"
+    min_point: {x: -30, y: 60, z: -80}
+    max_point: {x: 30, y: 80, z: -20}
+    priority: 5  # Lower priority than ancient_temple
+    default_state_id: "overgrown_ruins"
+    entry_message: "&2You enter the temple's outer courtyard."
+
+    states:
+      overgrown_ruins:
+        name: "Overgrown Ruins"
+        description: "Nature has reclaimed this forgotten courtyard"
+        icon: "minecraft:vine"
+        priority: 1
+        unlock_conditions: []
+
+      restored_courtyard:
+        name: "Restored Courtyard"
+        description: "The courtyard has been restored to its former glory"
+        icon: "minecraft:polished_granite"
+        priority: 3
+        unlock_conditions:
+          - type: "quest_completed"
+            value: "courtyard_restoration"
