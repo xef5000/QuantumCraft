@@ -11,6 +11,7 @@ import ca.xef5000.quantumcraft.protocol.PacketInterceptor;
 import ca.xef5000.quantumcraft.region.QuantumRegion;
 import ca.xef5000.quantumcraft.region.RegionManager;
 import ca.xef5000.quantumcraft.region.RegionState;
+import org.bstats.bukkit.Metrics;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -74,6 +75,8 @@ public final class QuantumCraft extends JavaPlugin {
         } else {
             getLogger().info("PlaceholderAPI not found, QuantumCraft placeholders will not be available.");
         }
+
+        Metrics metrics = new Metrics(this, 26091);
 
         getLogger().info("QuantumCraft has been enabled!");
         getLogger().info("Quantum superposition system initialized - reality is now optional!");
