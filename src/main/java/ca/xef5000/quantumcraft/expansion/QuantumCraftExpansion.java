@@ -76,7 +76,7 @@ public class QuantumCraftExpansion extends PlaceholderExpansion {
         }
 
         if ("region_state".equalsIgnoreCase(identifier)) {
-            RegionState playerState = playerStateManager.getCurrentState(player, currentRegion);
+            RegionState playerState = playerStateManager.getPlayerRegionState(player, currentRegion);
             if (playerState != null) {
                 return playerState.getName();
             } else {

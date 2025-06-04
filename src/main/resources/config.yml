@@ -58,3 +58,4 @@ defaults:
 placeholders:
   # Message to display for region placeholders when a player is not inside any quantum region
   not_in_region_message: "&7Not in a quantum region"
+  unknown_state_message: "&7Unknown quantum state"
