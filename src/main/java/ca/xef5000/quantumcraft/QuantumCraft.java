@@ -1,5 +1,6 @@
 package ca.xef5000.quantumcraft;
 
+import ca.xef5000.quantumcraft.expansion.QuantumCraftExpansion;
 import ca.xef5000.quantumcraft.commands.QuantumCraftCommand;
 import ca.xef5000.quantumcraft.config.RegionConfig;
 import ca.xef5000.quantumcraft.listeners.BlockListener;
@@ -65,6 +66,14 @@ public final class QuantumCraft extends JavaPlugin {
 
         // Start automatic state management
         autoStateManager.start();
+
+        // Register PlaceholderAPI expansion
+        if (getServer().getPluginManager().getPlugin("PlaceholderAPI") != null) {
+            new QuantumCraftExpansion(this).register();
+            getLogger().info("Successfully registered PlaceholderAPI expansion.");
+        } else {
+            getLogger().info("PlaceholderAPI not found, QuantumCraft placeholders will not be available.");
+        }
 
         getLogger().info("QuantumCraft has been enabled!");
         getLogger().info("Quantum superposition system initialized - reality is now optional!");

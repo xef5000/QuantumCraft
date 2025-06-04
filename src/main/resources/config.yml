@@ -53,3 +53,8 @@ defaults:
 
   # Automatically capture state when creating regions
   auto-capture-on-create: true
+
+# Placeholder settings
+placeholders:
+  # Message to display for region placeholders when a player is not inside any quantum region
+  not_in_region_message: "&7Not in a quantum region"
