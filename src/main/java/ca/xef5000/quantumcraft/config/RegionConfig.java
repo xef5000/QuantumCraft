@@ -10,6 +10,7 @@ import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.util.Vector;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.*;
 import java.util.logging.Logger;
@@ -34,10 +35,10 @@ public class RegionConfig {
      */
     public void loadFromConfig(FileConfiguration config) {
         regionConfigs.clear();
-        
+
         // Load global settings
         loadGlobalSettings(config);
-        
+
         // Load regions
         ConfigurationSection regionsSection = config.getConfigurationSection("regions");
         if (regionsSection == null) {
@@ -84,7 +85,7 @@ public class RegionConfig {
     private RegionConfigData loadRegionConfig(String regionId, ConfigurationSection section) {
         String name = section.getString("name", regionId);
         String worldName = section.getString("world");
-        int priority = section.getInt("priority", 0);
+        int priority = section.getInt("priority", regionConfigs.size() + 1); // Auto-generate priority based on creation order
         String defaultStateId = section.getString("default_state_id", "REALITY");
         String entryMessage = section.getString("entry_message");
         String exitMessage = section.getString("exit_message");
@@ -101,7 +102,7 @@ public class RegionConfig {
         // Load bounds
         ConfigurationSection minSection = section.getConfigurationSection("min_point");
         ConfigurationSection maxSection = section.getConfigurationSection("max_point");
-        
+
         if (minSection == null || maxSection == null) {
             throw new IllegalArgumentException("Region " + regionId + " must specify min_point and max_point");
         }
@@ -122,10 +123,21 @@ public class RegionConfig {
         // Load region settings
         RegionSettings settings = loadRegionSettings(section.getConfigurationSection("settings"));
 
-        // Load states
+        // Load states or auto-generate if none exist
+        RegionStatesData regionStatesData = getRegionStatesData(regionId, section, defaultStateId);
+
+        return new RegionConfigData(regionId, name, bounds, priority, regionStatesData.defaultStateId(),
+                                   entryMessage, exitMessage, settings, regionStatesData.states());
+    }
+
+    /**
+     * Gets the state data for a region, auto-generating a default state if none exist.
+     * */
+    private @NotNull RegionStatesData getRegionStatesData(String regionId, ConfigurationSection section, String defaultStateId) {
         Map<String, StateConfigData> states = new HashMap<>();
         ConfigurationSection statesSection = section.getConfigurationSection("states");
-        if (statesSection != null) {
+        if (statesSection != null && !statesSection.getKeys(false).isEmpty()) {
+            // Load existing states
             for (String stateId : statesSection.getKeys(false)) {
                 ConfigurationSection stateSection = statesSection.getConfigurationSection(stateId);
                 if (stateSection != null) {
@@ -133,10 +145,35 @@ public class RegionConfig {
                     states.put(stateId, stateData);
                 }
             }
-        }
+        } else {
+            // Auto-generate a default state if none exist
+            logger.info("Auto-generating default state for region " + regionId);
 
-        return new RegionConfigData(regionId, name, bounds, priority, defaultStateId, 
-                                   entryMessage, exitMessage, settings, states);
+            // Create a default state with empty unlock conditions
+            StateConfigData defaultState = new StateConfigData(
+                "default",
+                "Default State",
+                "The default state for this region",
+                "minecraft:stone",
+                1,
+                new ArrayList<>(), // Empty unlock conditions
+                new ArrayList<>(), // No enter commands
+                new ArrayList<>(), // No exit commands
+                new AmbientEffects() // No ambient effects
+            );
+
+            states.put("default", defaultState);
+
+            // Set the default state ID if it's not already set
+            if (defaultStateId.equals("REALITY")) {
+                defaultStateId = "default";
+            }
+        }
+        RegionStatesData regionStatesData = new RegionStatesData(defaultStateId, states);
+        return regionStatesData;
+    }
+
+    private record RegionStatesData(String defaultStateId, Map<String, StateConfigData> states) {
     }
 
     private RegionSettings loadRegionSettings(ConfigurationSection section) {
@@ -159,9 +196,9 @@ public class RegionConfig {
         String icon = section.getString("icon", "minecraft:stone");
         int priority = section.getInt("priority", 1);
 
-        // Load conditions
+        // Load conditions - always ensure unlock_conditions is at least an empty list
         List<StateCondition> conditions = new ArrayList<>();
-        if (section.contains("unlock_conditions")) {
+        if (section.contains("unlock_conditions") && !section.getList("unlock_conditions").isEmpty()) {
             List<Map<?, ?>> conditionMaps = section.getMapList("unlock_conditions");
             for (Map<?, ?> conditionMap : conditionMaps) {
                 try {
@@ -230,42 +267,104 @@ public class RegionConfig {
         return new AmbientEffects(sounds, particles);
     }
 
-    /**
-     * Creates QuantumRegion objects from the loaded configurations.
-     *
-     * @return A map of region ID to QuantumRegion
-     */
-    public Map<String, QuantumRegion> createQuantumRegions() {
-        Map<String, QuantumRegion> regions = new HashMap<>();
-
-        for (RegionConfigData configData : regionConfigs.values()) {
-            QuantumRegion region = new QuantumRegion(
-                configData.id,
-                configData.name,
-                configData.bounds
-            );
-
-            // Create states for the region
-            for (StateConfigData stateData : configData.states.values()) {
-                RegionState state = region.createState(stateData.id);
-                // Additional state setup would go here
-            }
-
-            // Set default state if it exists
-            if (configData.states.containsKey(configData.defaultStateId)) {
-                region.setDefaultState(configData.defaultStateId);
-            }
-
-            regions.put(configData.id, region);
-        }
-
-        return regions;
-    }
-
     // Getters
     public Map<String, RegionConfigData> getRegionConfigs() { return regionConfigs; }
     public GlobalSettings getGlobalSettings() { return globalSettings; }
     public RegionConfigData getRegionConfig(String regionId) { return regionConfigs.get(regionId); }
+
+    /**
+     * Adds a new region configuration to the cache.
+     * This should be called when a new region is created.
+     *
+     * @param region The QuantumRegion to create a configuration for
+     */
+    public void addRegionConfig(QuantumRegion region) {
+        // Create default settings
+        RegionSettings settings = new RegionSettings();
+
+        // Create default state data
+        Map<String, StateConfigData> states = new HashMap<>();
+        for (RegionState state : region.getStates()) {
+            StateConfigData stateData = new StateConfigData(
+                state.getName(),
+                state.getName(),
+                "State for " + region.getName(),
+                "minecraft:stone",
+                1,
+                new ArrayList<>(), // Empty unlock conditions
+                new ArrayList<>(), // No enter commands
+                new ArrayList<>(), // No exit commands
+                new AmbientEffects() // No ambient effects
+            );
+            states.put(state.getName(), stateData);
+        }
+
+        // Create region config data
+        RegionConfigData configData = new RegionConfigData(
+            region.getId(),
+            region.getName(),
+            region.getBounds(),
+            regionConfigs.size() + 1, // Auto-generate priority based on creation order
+            region.getDefaultStateName(),
+            null, // No entry message
+            null, // No exit message
+            settings,
+            states
+        );
+
+        // Add to cache
+        regionConfigs.put(region.getId(), configData);
+        logger.info("Added region configuration for " + region.getName() + " (ID: " + region.getId() + ")");
+    }
+
+    /**
+     * Updates the region configuration when a new state is added to a region.
+     * This should be called when a new state is created for a region.
+     *
+     * @param regionId The ID of the region
+     * @param state The new RegionState
+     */
+    public void addStateToRegionConfig(String regionId, RegionState state) {
+        RegionConfigData regionConfigData = regionConfigs.get(regionId);
+        if (regionConfigData == null) {
+            logger.warning("Cannot add state to region config: Region " + regionId + " not found in cache");
+            return;
+        }
+
+        // Create state config data
+        StateConfigData stateData = new StateConfigData(
+            state.getName(),
+            state.getName(),
+            "State for " + regionConfigData.name,
+            "minecraft:stone",
+            1,
+            new ArrayList<>(), // Empty unlock conditions
+            new ArrayList<>(), // No enter commands
+            new ArrayList<>(), // No exit commands
+            new AmbientEffects() // No ambient effects
+        );
+
+        // Add to region config data
+        Map<String, StateConfigData> updatedStates = new HashMap<>(regionConfigData.states);
+        updatedStates.put(state.getName(), stateData);
+
+        // Create updated region config data
+        RegionConfigData updatedConfigData = new RegionConfigData(
+            regionConfigData.id,
+            regionConfigData.name,
+            regionConfigData.bounds,
+            regionConfigData.priority,
+            regionConfigData.defaultStateId,
+            regionConfigData.entryMessage,
+            regionConfigData.exitMessage,
+            regionConfigData.settings,
+            updatedStates
+        );
+
+        // Update cache
+        regionConfigs.put(regionId, updatedConfigData);
+        logger.info("Added state " + state.getName() + " to region configuration for " + regionConfigData.name + " (ID: " + regionId + ")");
+    }
 
     // Data classes
     public static class GlobalSettings {

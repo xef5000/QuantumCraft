@@ -39,13 +39,13 @@ public class RegionManager {
         this.plugin = plugin;
         this.regions = new ConcurrentHashMap<>();
         this.regionsByName = new ConcurrentHashMap<>();
-        
+
         // Initialize storage
         FileConfiguration config = plugin.getConfig();
         File dataDir = new File(plugin.getDataFolder(), config.getString("storage.data-directory", "regions"));
         boolean compression = config.getBoolean("storage.enable-compression", true);
         this.storage = new StateStorage(dataDir, compression, plugin.getLogger());
-        
+
         // Setup auto-save timer
         int autoSaveInterval = config.getInt("storage.auto-save-interval", 5);
         if (autoSaveInterval > 0) {
@@ -96,7 +96,7 @@ public class RegionManager {
 
         // Create default state
         RegionState defaultState = region.createState("default");
-        
+
         // Auto-capture if enabled
         if (plugin.getConfig().getBoolean("defaults.auto-capture-on-create", true)) {
             defaultState.captureCurrentState();
@@ -104,6 +104,12 @@ public class RegionManager {
 
         regions.put(id, region);
         regionsByName.put(name.toLowerCase(), region);
+
+        // Add region configuration to cache
+        plugin.getRegionConfig().addRegionConfig(region);
+
+        // Save region configuration to regions.yml
+        plugin.saveRegionConfigurations();
 
         plugin.getLogger().info("Created quantum region: " + name + " (" + id + ")");
         return region;
@@ -168,11 +174,14 @@ public class RegionManager {
 
         // Delete from storage
         boolean deleted = storage.deleteRegion(regionId);
-        
+
         if (deleted) {
+            // Update regions.yml to remove the deleted region
+            plugin.saveRegionConfigurations();
+
             plugin.getLogger().info("Deleted quantum region: " + region.getName() + " (" + regionId + ")");
         }
-        
+
         return deleted;
     }
 
@@ -190,7 +199,15 @@ public class RegionManager {
         }
 
         try {
-            return region.createState(stateName);
+            RegionState state = region.createState(stateName);
+
+            // Add state to region configuration cache
+            plugin.getRegionConfig().addStateToRegionConfig(regionId, state);
+
+            // Update regions.yml with the new state
+            plugin.saveRegionConfigurations();
+
+            return state;
         } catch (IllegalArgumentException e) {
             plugin.getLogger().warning("Failed to create state '" + stateName + "' for region " + regionId + ": " + e.getMessage());
             return null;
@@ -252,6 +269,9 @@ public class RegionManager {
             for (QuantumRegion region : loadedRegions) {
                 regions.put(region.getId(), region);
                 regionsByName.put(region.getName().toLowerCase(), region);
+
+                // Add region configuration to cache
+                plugin.getRegionConfig().addRegionConfig(region);
             }
 
             plugin.getLogger().info("Loaded " + loadedRegions.size() + " quantum regions");
@@ -277,6 +297,9 @@ public class RegionManager {
             for (QuantumRegion region : loadedRegions) {
                 regions.put(region.getId(), region);
                 regionsByName.put(region.getName().toLowerCase(), region);
+
+                // Add region configuration to cache
+                plugin.getRegionConfig().addRegionConfig(region);
             }
 
             plugin.getLogger().info("Loaded " + loadedRegions.size() + " quantum regions synchronously");
@@ -297,13 +320,13 @@ public class RegionManager {
         stats.put("totalStates", regions.values().stream().mapToInt(r -> r.getStates().size()).sum());
         stats.put("totalBlocks", regions.values().stream().mapToInt(QuantumRegion::getTotalBlockCount).sum());
         stats.put("totalMemoryUsage", regions.values().stream().mapToLong(QuantumRegion::getTotalMemoryUsage).sum());
-        
+
         Map<String, Object> regionStats = new HashMap<>();
         for (QuantumRegion region : regions.values()) {
             regionStats.put(region.getName(), region.getStatistics());
         }
         stats.put("regions", regionStats);
-        
+
         return stats;
     }
 
@@ -314,7 +337,7 @@ public class RegionManager {
         if (autoSaveTimer != null) {
             autoSaveTimer.cancel();
         }
-        
+
         // Save all regions before shutdown synchronously
         saveAllRegionsSync();
     }

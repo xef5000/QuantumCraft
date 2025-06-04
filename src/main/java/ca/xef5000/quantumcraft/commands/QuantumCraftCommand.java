@@ -266,7 +266,7 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
             
             String stateName = args[3];
             try {
-                RegionState state = region.createState(stateName);
+                RegionState state = plugin.getRegionManager().createRegionState(region.getId(), stateName);
                 sender.sendMessage(ChatColor.GREEN + "Created state: " + stateName);
                 sender.sendMessage(ChatColor.YELLOW + "Use /qc state capture " + regionName + " " + stateName + " to capture blocks");
                 return true;
