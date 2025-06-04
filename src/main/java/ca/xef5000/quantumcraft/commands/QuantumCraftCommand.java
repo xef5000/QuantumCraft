@@ -74,6 +74,8 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
                 return handleReloadConfig(sender, args);
             case "setregionreality":
                 return handleSetRegionReality(sender, args);
+            case "update": // Added new case for update
+                return handleUpdate(sender, args);
             default:
                 sender.sendMessage(ChatColor.RED + "Unknown subcommand: " + subCommand);
                 sendHelp(sender);
@@ -345,6 +347,7 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(ChatColor.GREEN + "/qc refresh [region] - Refresh quantum regions");
         sender.sendMessage(ChatColor.GREEN + "/qc reload - Reload regions from disk");
         sender.sendMessage(ChatColor.GREEN + "/qc reloadconfig - Reload regions.yml configuration");
+        sender.sendMessage(ChatColor.GREEN + "/qc update [player] - Force update a player's quantum state");
     }
 
     /**
@@ -596,10 +599,48 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
+    /**
+     * Handles the 'update' subcommand.
+     * Forces an update of the player's quantum state via AutoStateManager.
+     */
+    private boolean handleUpdate(CommandSender sender, String[] args) {
+        Player targetPlayer = null;
+
+        if (args.length > 1) {
+            // Player specified
+            targetPlayer = plugin.getServer().getPlayer(args[1]);
+            if (targetPlayer == null) {
+                sender.sendMessage(ChatColor.RED + "Player not found: " + args[1]);
+                return true;
+            }
+        } else if (sender instanceof Player) {
+            // No player specified, use sender
+            targetPlayer = (Player) sender;
+        } else {
+            sender.sendMessage(ChatColor.RED + "You must specify a player when running this command from the console.");
+            sender.sendMessage(ChatColor.RED + "Usage: /qc update <player>");
+            return true;
+        }
+
+        if (plugin.getAutoStateManager() != null) {
+            plugin.getAutoStateManager().cleanupPlayer(targetPlayer);
+            plugin.getAutoStateManager().forceCheckPlayer(targetPlayer);
+            if (sender == targetPlayer) {
+                sender.sendMessage(ChatColor.GREEN + "Quantum state update forced for yourself.");
+            } else {
+                sender.sendMessage(ChatColor.GREEN + "Quantum state update forced for player: " + targetPlayer.getName());
+            }
+        } else {
+            sender.sendMessage(ChatColor.RED + "AutoStateManager is not available. Cannot force update.");
+        }
+
+        return true;
+    }
+
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {
-            return Arrays.asList("create", "delete", "list", "info", "state", "switch", "reality", "stick", "stats", "refresh", "reload", "setregionreality", "reloadconfig")
+            return Arrays.asList("create", "delete", "list", "info", "state", "switch", "reality", "stick", "stats", "refresh", "reload", "setregionreality", "reloadconfig", "update")
                     .stream()
                     .filter(s -> s.startsWith(args[0].toLowerCase()))
                     .collect(Collectors.toList());
@@ -623,6 +664,12 @@ public class QuantumCraftCommand implements CommandExecutor, TabCompleter {
                         .stream()
                         .map(QuantumRegion::getName)
                         .filter(s -> s.toLowerCase().startsWith(args[1].toLowerCase()))
+                        .collect(Collectors.toList());
+            } else if (subCommand.equals("update")) { // Added tab completion for "update"
+                return plugin.getServer().getOnlinePlayers()
+                        .stream()
+                        .map(Player::getName)
+                        .filter(name -> name.toLowerCase().startsWith(args[1].toLowerCase()))
                         .collect(Collectors.toList());
             } else {
                 return plugin.getRegionManager().getAllRegions()
