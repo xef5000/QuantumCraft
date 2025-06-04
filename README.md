@@ -32,6 +32,7 @@ QuantumCraft is a Minecraft plugin that implements quantum superposition concept
 
 - `/qc reality` - Enter reality mode for all regions (see actual server state)
 - `/qc reality <region>` - Enter reality mode for a specific region
+- `/qc setregionreality <region> <state>` - Sets the default 'reality' state for a region
 
 ### Statistics & Utilities
 
@@ -39,26 +40,17 @@ QuantumCraft is a Minecraft plugin that implements quantum superposition concept
 - `/qc refresh [region]` - Manually refresh quantum regions (useful for testing)
 - `/qc reload` - Reload all regions from disk (useful after server restart issues)
 - `/qc reloadconfig` - Reload regions.yml configuration (useful for testing)
+- `/qc update [player]` - Force update a player's quantum state
 
 ## How It Works
 
 1. **Create a Region**: Use `/qc stick` to get a selection tool, select two corners, then `/qc create <name>`
-2. **Capture States**: Use `/qc capture <region> default` to capture the current state
+2. **Capture States**: Use `/qc state capture <region> default` to capture the current state
 3. **Modify Reality**: Use `/qc reality <region>` to enter reality mode and modify blocks
 4. **Create New States**: Create a new state with `/qc state create <region> <newstate>`
 5. **Capture New State**: Use `/qc capture <region> <newstate>` to save the modified blocks
-6. **Switch Views**: Players can use `/qc switch <region> <state>` to see different versions
-
-### Automatic Region Updates
-
-The plugin now automatically refreshes quantum regions when:
-- **Players join the server** - All relevant regions are refreshed after a 1-second delay
-- **Players move between regions** - Regions are refreshed when entering new quantum areas
-- **Players teleport** - Regions are refreshed at the destination
-- **States are switched** - The region is immediately refreshed with the new state
-- **Reality mode is toggled** - The region is refreshed to show reality or return to state view
-
-This ensures players always see the correct quantum state without needing to manually trigger block updates.
+6. **Switch Views**: Use `/qc switch <region> <state>` to see different versions
+7. **Automatic Updates**: Configure `regions.yml` to automatically manage states based on conditions
 
 ### Server Restart Handling
 
@@ -93,9 +85,12 @@ The plugin now properly handles server restarts:
 # Capture the new state
 /qc capture village ruins
 
-# Now players can switch between states:
+# Now you can switch between states:
 /qc switch village default  # See the original village
 /qc switch village ruins    # See the ruined version
+
+# Configure regions.yml
+# Add unlock conditions, on-enter commands, etc.
 ```
 
 ## Permissions
@@ -124,6 +119,11 @@ debug:
   enable-debug: false
   log-packets: false
   log-regions: false
+
+# Placeholder settings
+placeholders:
+  not_in_region_message: "&7Not in a quantum region"
+  unknown_state_message: "&7Unknown quantum state"
 ```
 
 ## Dependencies
